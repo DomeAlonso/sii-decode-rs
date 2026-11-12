@@ -17,8 +17,10 @@ type TrackerAnalysis = {
     brand_distance_km: Record<string, number>;
     cargo_category_coverage: Record<string, number>;
   };
+  achievement_groups?: AchievementGroupInfo[];
   achievements: Array<{
     id: string;
+    group?: string;
     steam_api_name?: string;
     display_name: string;
     description: string;
@@ -35,6 +37,19 @@ type TrackerAnalysis = {
       complete: boolean;
     }>;
   }>;
+};
+
+type AchievementGroupInfo = {
+  id: string;
+  name: string;
+  steam_group_id?: number;
+  steam_dlc_app_id?: number | null;
+};
+
+type Achievement = TrackerAnalysis["achievements"][number];
+
+type AchievementGroup = AchievementGroupInfo & {
+  achievements: Achievement[];
 };
 
 type AchievementStatus = TrackerAnalysis["achievements"][number]["status"];
@@ -307,7 +322,7 @@ function TrackerView({
       {state.status === "success" && state.analysis ? (
         <div className="tracker-results" data-testid="tracker-results">
           <AnalyticsSummary analysis={state.analysis} />
-          <AchievementList achievements={state.analysis.achievements} />
+          <AchievementGroups analysis={state.analysis} />
         </div>
       ) : null}
     </section>
@@ -348,13 +363,101 @@ function Metric({ label, value }: { label: string; value: ReactNode }) {
   );
 }
 
+const DEFAULT_ACHIEVEMENT_GROUP: AchievementGroupInfo = {
+  id: "base_game",
+  name: "Base Game",
+};
+
+function groupAchievements(analysis: TrackerAnalysis): AchievementGroup[] {
+  const groupInfos = analysis.achievement_groups?.length
+    ? analysis.achievement_groups
+    : [DEFAULT_ACHIEVEMENT_GROUP];
+  const groups = new Map<string, AchievementGroup>(
+    groupInfos.map((group) => [group.id, { ...group, achievements: [] }]),
+  );
+  for (const achievement of analysis.achievements) {
+    const groupId = achievement.group ?? groupInfos[0].id;
+    let group = groups.get(groupId);
+    if (!group) {
+      group = { id: groupId, name: groupId, achievements: [] };
+      groups.set(groupId, group);
+    }
+    group.achievements.push(achievement);
+  }
+  return [...groups.values()].filter((group) => group.achievements.length > 0);
+}
+
+function AchievementGroups({ analysis }: { analysis: TrackerAnalysis }) {
+  const groups = groupAchievements(analysis);
+  return (
+    <section className="achievement-groups" aria-label="Achievements">
+      {groups.map((group, index) => (
+        <AchievementGroupSection
+          key={group.id}
+          group={group}
+          defaultExpanded={index === 0}
+        />
+      ))}
+    </section>
+  );
+}
+
+function AchievementGroupSection({
+  group,
+  defaultExpanded,
+}: {
+  group: AchievementGroup;
+  defaultExpanded: boolean;
+}) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
+  const contentId = `achievement-group-${group.id}`;
+  const total = group.achievements.length;
+  const complete = group.achievements.filter(
+    (achievement) => achievement.status === "complete",
+  ).length;
+  const tracked = group.achievements.filter(
+    (achievement) => achievement.status !== "not_tracked",
+  ).length;
+
+  return (
+    <section className="achievement-group" data-testid="achievement-group">
+      <h3 className="achievement-group-heading">
+        <button
+          type="button"
+          aria-expanded={expanded}
+          aria-controls={contentId}
+          onClick={() => setExpanded((value) => !value)}
+        >
+          <span className="achievement-group-chevron" aria-hidden="true" />
+          <span className="achievement-group-name">{group.name}</span>
+          <span className="achievement-group-summary">
+            {complete} / {total} complete
+            {tracked < total ? ` · ${tracked} tracked` : ""}
+          </span>
+        </button>
+      </h3>
+      {expanded ? (
+        <div id={contentId} className="achievement-group-content">
+          <p className="achievement-group-count">Achievements ({total})</p>
+          <AchievementList
+            achievements={group.achievements}
+            label={`${group.name} achievements`}
+          />
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function AchievementList({
   achievements,
+  label,
 }: {
-  achievements: TrackerAnalysis["achievements"];
+  achievements: Achievement[];
+  label: string;
 }) {
   return (
-    <section className="achievements" aria-label="Achievements">
+    <section className="achievements" aria-label={label}>
       {achievements.map((achievement) => (
         <article
           className={`achievement ${achievement.status}`}
@@ -362,7 +465,7 @@ function AchievementList({
         >
           <div className="achievement-heading">
             <div>
-              <h3>{achievement.display_name}</h3>
+              <h4>{achievement.display_name}</h4>
               <p>{achievement.description}</p>
             </div>
             <span className={`status ${achievement.status}`}>
@@ -478,17 +581,22 @@ function statusLabel(status: AchievementStatus) {
   }
 }
 
+const EVIDENCE_ITEM_LABELS: Record<string, string> = {
+  reliable_contractor: "companies",
+  experience_beats_all: "cargos",
+  all_is_possible: "cargos",
+  size_matters: "cargos",
+  the_bigger_the_better: "cargos",
+  giant: "cargos",
+  big_brother: "cargos",
+  not_a_canoe: "cargos",
+  volvo_trucks_lover: "deliveries",
+  scania_trucks_lover: "deliveries",
+  turkish_delight: "deliveries",
+};
+
 function evidenceListItemLabel(achievementId: string) {
-  if (achievementId === "reliable_contractor") {
-    return "companies";
-  }
-  if (
-    achievementId === "experience_beats_all" ||
-    achievementId === "all_is_possible"
-  ) {
-    return "cargos";
-  }
-  return null;
+  return EVIDENCE_ITEM_LABELS[achievementId] ?? null;
 }
 
 function formatCurrency(value: number) {

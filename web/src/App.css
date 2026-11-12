@@ -21,7 +21,7 @@
 
 .app-header h1,
 .panel h2,
-.achievement h3,
+.achievement h4,
 .achievement p {
   margin: 0;
 }
@@ -111,6 +111,7 @@ textarea {
 }
 
 .tracker-results,
+.achievement-groups,
 .achievements {
   display: flex;
   flex-direction: column;
@@ -154,9 +155,81 @@ textarea {
   color: #374151;
 }
 
-.achievement.not_tracked h3,
+.achievement.not_tracked h4,
 .achievement.not_tracked .evidence-value {
   color: #6b7280;
+}
+
+.achievement-group {
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.achievement-group-heading {
+  margin: 0;
+}
+
+.achievement-group-heading button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 12px;
+  border: 0;
+  border-radius: 8px;
+  padding: 14px 16px;
+  background: transparent;
+  color: #152033;
+  font-size: 1.05rem;
+  font-weight: 700;
+  text-align: left;
+}
+
+.achievement-group-heading button:hover {
+  background: #eef2f7;
+}
+
+.achievement-group-chevron {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.15s ease;
+}
+
+.achievement-group-heading
+  button[aria-expanded="true"]
+  .achievement-group-chevron {
+  transform: rotate(45deg);
+}
+
+.achievement-group-name {
+  flex: 1;
+}
+
+.achievement-group-summary {
+  flex: none;
+  color: #5b6675;
+  font-size: 0.85rem;
+  font-weight: 400;
+}
+
+.achievement-group-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 16px 16px;
+}
+
+.achievement-group-count {
+  margin: 0;
+  color: #5b6675;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 progress {

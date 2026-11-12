@@ -51,9 +51,30 @@ vi.mock("../src/decode.worker?worker", () => {
                       brand_distance_km: { Mercedes: 362, Scania: 1482 },
                       cargo_category_coverage: { bulk: 1, refrigerated: 1 },
                     },
+                    achievement_groups: [
+                      {
+                        id: "base_game",
+                        name: "Base Game",
+                        steam_group_id: 0,
+                        steam_dlc_app_id: null,
+                      },
+                      {
+                        id: "special_transport",
+                        name: "Special Transport Expansion Achievements",
+                        steam_group_id: 2,
+                        steam_dlc_app_id: 558245,
+                      },
+                      {
+                        id: "iceland",
+                        name: "Iceland Map Expansion Achievements",
+                        steam_group_id: 14,
+                        steam_dlc_app_id: 3796990,
+                      },
+                    ],
                     achievements: [
                       {
                         id: "experience_beats_all",
+                        group: "base_game",
                         display_name: "Experience Beats All",
                         description:
                           "Complete deliveries with all trailer types.",
@@ -74,6 +95,7 @@ vi.mock("../src/decode.worker?worker", () => {
                       },
                       {
                         id: "long_hauler",
+                        group: "base_game",
                         display_name: "Long Hauler",
                         description:
                           "Complete a delivery that was greater than 2,000 km.",
@@ -93,6 +115,7 @@ vi.mock("../src/decode.worker?worker", () => {
                       },
                       {
                         id: "property_magnate",
+                        group: "base_game",
                         steam_api_name: "garage_in_every_city",
                         display_name: "Property Magnate",
                         description: "Own at least 30 garages",
@@ -104,6 +127,28 @@ vi.mock("../src/decode.worker?worker", () => {
                             value:
                               "Needs owned garage data from the save, which the tracker does not read yet",
                             complete: false,
+                          },
+                        ],
+                      },
+                      {
+                        id: "size_matters",
+                        group: "special_transport",
+                        steam_api_name: "st_first_cargo",
+                        display_name: "Size Matters",
+                        description:
+                          "Deliver first oversize cargo (requires Special Transport DLC)",
+                        status: "complete",
+                        progress: {
+                          current: 2,
+                          target: 1,
+                          unit: "oversize deliveries",
+                        },
+                        evidence: [
+                          {
+                            label: "Oversize cargoes",
+                            value: "silo, pilot_boat",
+                            items: ["pilot_boat", "silo"],
+                            complete: true,
                           },
                         ],
                       },
@@ -225,13 +270,55 @@ test("Tracker can render analysis", async () => {
   const achievementsMetric = screen
     .getByText("Achievements")
     .closest(".metric");
-  expect(within(achievementsMetric).getByText("1 / 3")).toBeInTheDocument();
+  expect(within(achievementsMetric).getByText("2 / 4")).toBeInTheDocument();
   const untracked = screen.getByText("Property Magnate").closest("article");
   expect(within(untracked).getByText("Not tracked")).toBeInTheDocument();
   expect(within(untracked).queryByRole("progressbar")).not.toBeInTheDocument();
   expect(
     within(untracked).getByText(/Needs owned garage data/),
   ).toBeInTheDocument();
+});
+
+test("Tracker groups achievements by set and expands them on click", async () => {
+  window.location.hash = "#tracker";
+  render(<App />);
+
+  await userEvent.upload(
+    screen.getByTestId("tracker-file-upload"),
+    new File(["BSII"], "save.sii"),
+  );
+  await waitFor(() => {
+    expect(screen.getByTestId("tracker-results")).toBeInTheDocument();
+  });
+
+  const groups = screen.getAllByTestId("achievement-group");
+  // Sets without achievements in the analysis are not rendered.
+  expect(groups).toHaveLength(2);
+
+  const baseGame = screen.getByRole("button", { name: /Base Game/ });
+  expect(baseGame).toHaveAttribute("aria-expanded", "true");
+  expect(baseGame).toHaveTextContent("1 / 3 complete · 2 tracked");
+  expect(within(groups[0]).getByText("Achievements (3)")).toBeInTheDocument();
+
+  const specialTransport = screen.getByRole("button", {
+    name: /Special Transport Expansion Achievements/,
+  });
+  expect(specialTransport).toHaveAttribute("aria-expanded", "false");
+  expect(specialTransport).toHaveTextContent("1 / 1 complete");
+  expect(screen.queryByText("Size Matters")).not.toBeInTheDocument();
+
+  await userEvent.click(specialTransport);
+  expect(specialTransport).toHaveAttribute("aria-expanded", "true");
+  const sizeMatters = screen.getByText("Size Matters").closest("article");
+  await userEvent.click(
+    within(sizeMatters).getByRole("button", { name: "View 2 cargos" }),
+  );
+  expect(screen.getByRole("dialog")).toHaveTextContent("pilot_boat");
+  await userEvent.click(screen.getByRole("button", { name: "Close" }));
+
+  await userEvent.click(baseGame);
+  expect(baseGame).toHaveAttribute("aria-expanded", "false");
+  expect(screen.queryByText("Long Hauler")).not.toBeInTheDocument();
 });
 
 test("Tracker can display unsupported-format error", async () => {
