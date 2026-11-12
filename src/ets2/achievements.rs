@@ -1,7 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::ets2::achievement_definitions::{ACHIEVEMENTS, ACHIEVEMENT_GROUPS};
 use crate::ets2::generated::cargo_metadata::CARGOS;
-use crate::ets2::save::{cargo_id, company_id, truck_brand, DeliveryLogEntry, SaveGame};
+use crate::ets2::save::{
+    cargo_id, company_city, company_id, truck_brand, DeliveryLogEntry, SaveGame,
+};
 use crate::ets2::CargoMetadata;
 
 pub const EXPERIENCE_BEATS_ALL_CATEGORIES: [&str; 8] = [
@@ -25,14 +28,44 @@ const PROFIT_HUNTER_TARGET_REVENUE: f64 = 130_000.0;
 const PROFIT_HUNTER_TARGET_DISTANCE_KM: u32 = 2200;
 const SUMMARY_EVIDENCE_LIMIT: usize = 30;
 
+/// `job_type` of Special Transport (oversize) jobs in the delivery log.
+const OVERSIZE_JOB_TYPE: &str = "spec_oversize";
+const THE_BIGGER_THE_BETTER_TARGET_CARGOS: u32 = 10;
+const TURKISH_DELIGHT_TARGET_DELIVERIES: u32 = 3;
+const TURKISH_DELIGHT_MIN_DISTANCE_KM: u32 = 2500;
+
+// City IDs below follow the game's `company.volatile.<company>.<city>` naming,
+// which uses local spellings (e.g. `munchen`, `wien`, `bucuresti`).
+const ISTANBUL: &str = "istanbul";
+const ORIENT_EXPRESS_LEGS: [(&str, &str); 6] = [
+    ("paris", "strasbourg"),
+    ("strasbourg", "munchen"),
+    ("munchen", "wien"),
+    ("wien", "budapest"),
+    ("budapest", "bucuresti"),
+    ("bucuresti", ISTANBUL),
+];
+const IBERIAN_PILGRIMAGE_LEGS: [(&str, &str); 3] = [
+    ("lisboa", "a_coruna"),
+    ("sevilla", "a_coruna"),
+    ("pamplona", "a_coruna"),
+];
+const HEAD_HUNTER_TARGET_AGENCIES: u32 = 40;
+const PROPERTY_MAGNATE_TARGET_GARAGES: u32 = 30;
+// Company/city IDs below were checked against a 1.5x save's company list.
+const FRENCH_NUCLEAR_PLANT_CITIES: [&str; 5] = ["alban", "civaux", "golfech", "laurent", "paluel"];
+const SCANDINAVIA_CONTAINER_PORT_CITIES: [&str; 2] = ["esbjerg", "oslo"];
+
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct AchievementRegistry {
+    pub groups: Vec<AchievementGroup>,
     pub achievements: Vec<Achievement>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Achievement {
     pub id: &'static str,
+    pub group: &'static str,
     pub steam_api_name: &'static str,
     pub display_name: &'static str,
     pub description: &'static str,
@@ -64,10 +97,23 @@ pub struct AchievementEvidence {
     pub complete: bool,
 }
 
+/// One Steam achievement set: the base game, a DLC, or another special set.
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub struct AchievementGroup {
+    pub id: &'static str,
+    pub name: &'static str,
+    /// The set's `id` in Steam's achievement schema.
+    pub steam_group_id: u32,
+    /// The DLC's Steam app id, when the set belongs to one DLC.
+    pub steam_dlc_app_id: Option<u32>,
+}
+
 /// Static description of one Steam achievement and how the tracker evaluates it.
 #[derive(Debug, Clone, Copy)]
 pub struct AchievementDefinition {
     pub id: &'static str,
+    /// The `id` of the [`AchievementGroup`] this achievement belongs to.
+    pub group: &'static str,
     /// The achievement's `api_name` on Steam (app 227300).
     pub steam_api_name: &'static str,
     pub display_name: &'static str,
@@ -79,8 +125,8 @@ pub struct AchievementDefinition {
 pub enum AchievementTracking {
     /// Evaluated from the save game's delivery log.
     DeliveryLog(fn(&SaveGame) -> AchievementEvaluation),
-    /// Listed for completeness; `requires` names the save data still needed.
-    NotTracked { requires: &'static str },
+    /// Listed for completeness; `reason` says what the tracker is missing.
+    NotTracked { reason: &'static str },
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -90,227 +136,10 @@ pub struct AchievementEvaluation {
     pub evidence: Vec<AchievementEvidence>,
 }
 
-const fn delivery_log(evaluate: fn(&SaveGame) -> AchievementEvaluation) -> AchievementTracking {
-    AchievementTracking::DeliveryLog(evaluate)
-}
-
-const fn not_tracked(requires: &'static str) -> AchievementTracking {
-    AchievementTracking::NotTracked { requires }
-}
-
-/// All 29 base-game Euro Truck Simulator 2 achievements, in Steam order.
-/// Names and descriptions follow the Steam achievement page; DLC and
-/// Driving Academy achievement groups are not included.
-pub const BASE_GAME_ACHIEVEMENTS: [AchievementDefinition; 29] = [
-    AchievementDefinition {
-        id: "i_am_a_gps",
-        steam_api_name: "map_discover_60",
-        display_name: "I Am a GPS",
-        description: "Discover at least 20,000 kilometers of roads",
-        tracking: not_tracked("discovered road data"),
-    },
-    AchievementDefinition {
-        id: "pathfinder",
-        steam_api_name: "map_discover_100",
-        display_name: "Pathfinder",
-        description: "Discover at least 40,000 kilometers of roads",
-        tracking: not_tracked("discovered road data"),
-    },
-    AchievementDefinition {
-        id: "choo_choo",
-        steam_api_name: "use_train",
-        display_name: "Choo-Choo",
-        description: "Use the train to cross the channel",
-        tracking: not_tracked("ferry and train usage"),
-    },
-    AchievementDefinition {
-        id: "sardine",
-        steam_api_name: "use_boat",
-        display_name: "Sardine",
-        description: "Utilize a boat",
-        tracking: not_tracked("ferry and train usage"),
-    },
-    AchievementDefinition {
-        id: "head_hunter",
-        steam_api_name: "discover_all_agencies",
-        display_name: "Head Hunter",
-        description: "Discover at least 40 recruitment agencies",
-        tracking: not_tracked("discovered recruitment agencies"),
-    },
-    AchievementDefinition {
-        id: "successfully_docked",
-        steam_api_name: "use_all_ports",
-        display_name: "Successfully Docked",
-        description: "Use at least 5 ports in the game (counts sea, river and train ports)",
-        tracking: not_tracked("ferry and train usage"),
-    },
-    AchievementDefinition {
-        id: "from_the_comfort_of_your_home",
-        steam_api_name: "buy_truck_online",
-        display_name: "From the Comfort of Your Home",
-        description: "Buy a truck online",
-        tracking: not_tracked("truck purchase history"),
-    },
-    AchievementDefinition {
-        id: "my_precious",
-        steam_api_name: "metallic_multi_color_paint",
-        display_name: "My Precious",
-        description: "Design and apply to your truck a custom multi-color metallic paint",
-        tracking: not_tracked("truck paint job data"),
-    },
-    AchievementDefinition {
-        id: "test_drive_limited",
-        steam_api_name: "999_km_with_each_brand",
-        display_name: "Test Drive Limited (5 Truck Brands)",
-        description:
-            "Drive 999 km during jobs with each of at least 5 truck brands, only your owned trucks count",
-        tracking: delivery_log(test_drive_limited),
-    },
-    AchievementDefinition {
-        id: "just_in_time",
-        steam_api_name: "job_urgent",
-        display_name: "Just in Time!",
-        description: "Take an urgent delivery for a minimum of 550 km and complete it with less than 30 minutes remaining",
-        tracking: not_tracked("job urgency and delivery deadline data"),
-    },
-    AchievementDefinition {
-        id: "long_hauler",
-        steam_api_name: "job_2000_km",
-        display_name: "Long Hauler",
-        description: "Complete a delivery that was greater than 2,000 km",
-        tracking: delivery_log(long_hauler),
-    },
-    AchievementDefinition {
-        id: "reliable_contractor",
-        steam_api_name: "job_15_companies",
-        display_name: "Reliable Contractor",
-        description: "Perform jobs for at least 15 different companies in the game",
-        tracking: delivery_log(reliable_contractor),
-    },
-    AchievementDefinition {
-        id: "profit_hunter",
-        steam_api_name: "job_no_ferry",
-        display_name: "Profit Hunter",
-        description: "Complete a job worth over €130,000 and minimum 2,200 km",
-        tracking: delivery_log(profit_hunter),
-    },
-    AchievementDefinition {
-        id: "experience_beats_all",
-        steam_api_name: "job_all_trailer_types",
-        display_name: "Experience Beats All!",
-        description: "Complete deliveries with following trailer types: Machinery, ADR cargo, Container, Refrigerated, Liquid cargo, Fragile cargo, Construction, Bulk cargo",
-        tracking: delivery_log(experience_beats_all),
-    },
-    AchievementDefinition {
-        id: "job_is_only_worth_it_if_its_done_well",
-        steam_api_name: "perfect_delivery",
-        display_name: "Job Is Only Worth It If It's Done Well!",
-        description: "Complete a perfect delivery (no damage, no fines, in-time) for a job that is at least 1,000 km",
-        tracking: not_tracked("per-job damage, fine and lateness data"),
-    },
-    AchievementDefinition {
-        id: "careerist",
-        steam_api_name: "5_jobs_in_a_row",
-        display_name: "Careerist",
-        description: "Complete 5 jobs in a row - in-time, without taking any damage to cargo and without using autoparking",
-        tracking: not_tracked("per-job damage, lateness and autoparking data"),
-    },
-    AchievementDefinition {
-        id: "friends_are_always_here_to_help_you",
-        steam_api_name: "use_automatic_parking",
-        display_name: "Friends Are Always Here to Help You",
-        description: "Use automatic parking",
-        tracking: not_tracked("autoparking usage"),
-    },
-    AchievementDefinition {
-        id: "all_is_possible",
-        steam_api_name: "jobs_30_cargo",
-        display_name: "All Is Possible",
-        description: "Take and complete jobs with at least 30 different cargo",
-        tracking: delivery_log(all_is_possible),
-    },
-    AchievementDefinition {
-        id: "minimaxer",
-        steam_api_name: "jobs_20k_xp",
-        display_name: "Minimaxer",
-        description: "Gain 20,000 XP for several consecutive jobs with the total distance below 10,000 km",
-        tracking: not_tracked("per-job XP data"),
-    },
-    AchievementDefinition {
-        id: "honey_im_home",
-        steam_api_name: "quick_travel_to_hq",
-        display_name: "Honey, I'm Home",
-        description: "Use quick travel to return to your headquarters",
-        tracking: not_tracked("quick travel usage"),
-    },
-    AchievementDefinition {
-        id: "national_company",
-        steam_api_name: "garages_in_hq_country",
-        display_name: "National Company",
-        description: "Own at least one largest garage in your headquarter country",
-        tracking: not_tracked("owned garage and headquarters data"),
-    },
-    AchievementDefinition {
-        id: "property_magnate",
-        steam_api_name: "garage_in_every_city",
-        display_name: "Property Magnate",
-        description: "Own at least 30 garages",
-        tracking: not_tracked("owned garage data"),
-    },
-    AchievementDefinition {
-        id: "working_with_the_elite",
-        steam_api_name: "large_garage_productivity",
-        display_name: "Working with the Elite",
-        description: "Achieve 100% of productivity for at least 5 large garages at the same time",
-        tracking: not_tracked("garage productivity data"),
-    },
-    AchievementDefinition {
-        id: "swimming_in_success",
-        steam_api_name: "daily_profit",
-        display_name: "Swimming in Success",
-        description: "Reach an average daily profit of €450,000",
-        tracking: not_tracked("company profit history"),
-    },
-    AchievementDefinition {
-        id: "performance_optimizer",
-        steam_api_name: "productivity_all_garages",
-        display_name: "Performance Optimizer",
-        description: "Achieve at least 75% of the average garage productivity for 10 large garages in your company",
-        tracking: not_tracked("garage productivity data"),
-    },
-    AchievementDefinition {
-        id: "aspects_of_professionalism",
-        steam_api_name: "maxed_male_female",
-        display_name: "Aspects of Professionalism",
-        description: "Have at least 10 female and 10 male employees of maximum level in your company",
-        tracking: not_tracked("hired driver data"),
-    },
-    AchievementDefinition {
-        id: "zzzzz",
-        steam_api_name: "use_rest_stop",
-        display_name: "Zzzzz",
-        description: "Use a rest stop",
-        tracking: not_tracked("rest stop usage"),
-    },
-    AchievementDefinition {
-        id: "diesel_no_petrol",
-        steam_api_name: "use_gas_station",
-        display_name: "Diesel, No Petrol!",
-        description: "Use a filling station",
-        tracking: not_tracked("filling station usage"),
-    },
-    AchievementDefinition {
-        id: "parking_challenge",
-        steam_api_name: "unload_difficulty",
-        display_name: "Parking Challenge",
-        description: "Complete 20 deliveries choosing the trailer delivery option which requires reversing",
-        tracking: not_tracked("trailer delivery (parking) option per job"),
-    },
-];
-
 pub fn evaluate_achievements(save: &SaveGame) -> AchievementRegistry {
     AchievementRegistry {
-        achievements: BASE_GAME_ACHIEVEMENTS
+        groups: ACHIEVEMENT_GROUPS.to_vec(),
+        achievements: ACHIEVEMENTS
             .iter()
             .map(|definition| evaluate_definition(definition, save))
             .collect(),
@@ -320,7 +149,7 @@ pub fn evaluate_achievements(save: &SaveGame) -> AchievementRegistry {
 fn evaluate_definition(definition: &AchievementDefinition, save: &SaveGame) -> Achievement {
     let evaluation = match definition.tracking {
         AchievementTracking::DeliveryLog(evaluate) => evaluate(save),
-        AchievementTracking::NotTracked { requires } => AchievementEvaluation {
+        AchievementTracking::NotTracked { reason } => AchievementEvaluation {
             status: AchievementStatus::NotTracked,
             progress: AchievementProgress {
                 current: 0,
@@ -329,9 +158,7 @@ fn evaluate_definition(definition: &AchievementDefinition, save: &SaveGame) -> A
             },
             evidence: vec![AchievementEvidence {
                 label: "Not tracked yet".to_string(),
-                value: format!(
-                    "Needs {requires} from the save, which the tracker does not read yet"
-                ),
+                value: reason.to_string(),
                 items: Vec::new(),
                 complete: false,
             }],
@@ -340,6 +167,7 @@ fn evaluate_definition(definition: &AchievementDefinition, save: &SaveGame) -> A
 
     Achievement {
         id: definition.id,
+        group: definition.group,
         steam_api_name: definition.steam_api_name,
         display_name: definition.display_name,
         description: definition.description,
@@ -349,7 +177,7 @@ fn evaluate_definition(definition: &AchievementDefinition, save: &SaveGame) -> A
     }
 }
 
-fn experience_beats_all(save: &SaveGame) -> AchievementEvaluation {
+pub(crate) fn experience_beats_all(save: &SaveGame) -> AchievementEvaluation {
     let mut evidence_by_category = EXPERIENCE_BEATS_ALL_CATEGORIES
         .into_iter()
         .map(|category| (category, BTreeSet::new()))
@@ -389,7 +217,7 @@ fn experience_beats_all(save: &SaveGame) -> AchievementEvaluation {
     }
 }
 
-fn test_drive_limited(save: &SaveGame) -> AchievementEvaluation {
+pub(crate) fn test_drive_limited(save: &SaveGame) -> AchievementEvaluation {
     let mut distance_by_brand = BTreeMap::<String, u64>::new();
     for entry in save
         .delivery_log
@@ -424,7 +252,7 @@ fn test_drive_limited(save: &SaveGame) -> AchievementEvaluation {
     }
 }
 
-fn all_is_possible(save: &SaveGame) -> AchievementEvaluation {
+pub(crate) fn all_is_possible(save: &SaveGame) -> AchievementEvaluation {
     let cargos = save
         .delivery_log
         .unique_cargos()
@@ -449,7 +277,7 @@ fn all_is_possible(save: &SaveGame) -> AchievementEvaluation {
     }
 }
 
-fn reliable_contractor(save: &SaveGame) -> AchievementEvaluation {
+pub(crate) fn reliable_contractor(save: &SaveGame) -> AchievementEvaluation {
     let companies = save
         .delivery_log
         .entries
@@ -480,7 +308,7 @@ fn reliable_contractor(save: &SaveGame) -> AchievementEvaluation {
     }
 }
 
-fn long_hauler(save: &SaveGame) -> AchievementEvaluation {
+pub(crate) fn long_hauler(save: &SaveGame) -> AchievementEvaluation {
     let longest = save
         .delivery_log
         .entries
@@ -511,7 +339,7 @@ fn long_hauler(save: &SaveGame) -> AchievementEvaluation {
     }
 }
 
-fn profit_hunter(save: &SaveGame) -> AchievementEvaluation {
+pub(crate) fn profit_hunter(save: &SaveGame) -> AchievementEvaluation {
     let qualifying = save
         .delivery_log
         .entries
@@ -551,6 +379,500 @@ fn profit_hunter(save: &SaveGame) -> AchievementEvaluation {
             complete,
         }],
     }
+}
+
+pub(crate) fn choo_choo(save: &SaveGame) -> AchievementEvaluation {
+    ferry_crossings(save, true)
+}
+
+pub(crate) fn sardine(save: &SaveGame) -> AchievementEvaluation {
+    ferry_crossings(save, false)
+}
+
+fn ferry_crossings(save: &SaveGame, train: bool) -> AchievementEvaluation {
+    let Some(crossings) = &save.career.ferry_crossings else {
+        return missing_data(1, "crossings", "Ferry log");
+    };
+    let used = crossings
+        .iter()
+        .filter(|crossing| crossing.is_train() == train)
+        .map(|crossing| {
+            format!(
+                "{} → {} ({}×)",
+                crossing.from, crossing.to, crossing.use_count
+            )
+        })
+        .collect::<Vec<_>>();
+    let current = used.len() as u32;
+
+    AchievementEvaluation {
+        status: status_from_progress(current, 1),
+        progress: AchievementProgress {
+            current,
+            target: 1,
+            unit: "crossings",
+        },
+        evidence: vec![AchievementEvidence {
+            label: if train {
+                "Channel Tunnel crossings".to_string()
+            } else {
+                "Ferry crossings".to_string()
+            },
+            value: summarize_list(&used),
+            items: used.clone(),
+            complete: current >= 1,
+        }],
+    }
+}
+
+pub(crate) fn head_hunter(save: &SaveGame) -> AchievementEvaluation {
+    let Some(agencies) = &save.career.unlocked_recruitments else {
+        return missing_data(
+            HEAD_HUNTER_TARGET_AGENCIES,
+            "agencies",
+            "Recruitment agencies",
+        );
+    };
+    let agencies = agencies.iter().cloned().collect::<BTreeSet<_>>();
+    set_achievement(
+        &agencies,
+        HEAD_HUNTER_TARGET_AGENCIES,
+        "agencies",
+        "Discovered agencies",
+    )
+}
+
+pub(crate) fn from_the_comfort_of_your_home(save: &SaveGame) -> AchievementEvaluation {
+    counter(
+        save.career.trucks_bought_online.map(saturating_u32),
+        1,
+        "trucks",
+        "Trucks bought online",
+    )
+}
+
+pub(crate) fn diesel_no_petrol(save: &SaveGame) -> AchievementEvaluation {
+    counter(
+        save.career.gas_station_visits.map(saturating_u32),
+        1,
+        "visits",
+        "Filling station visits",
+    )
+}
+
+pub(crate) fn property_magnate(save: &SaveGame) -> AchievementEvaluation {
+    let Some(garages) = &save.career.garages else {
+        return missing_data(PROPERTY_MAGNATE_TARGET_GARAGES, "garages", "Garages");
+    };
+    let owned = garages
+        .iter()
+        .filter(|garage| garage.size.is_owned())
+        .map(|garage| garage.city.clone())
+        .collect::<BTreeSet<_>>();
+    set_achievement(
+        &owned,
+        PROPERTY_MAGNATE_TARGET_GARAGES,
+        "garages",
+        "Owned garages",
+    )
+}
+
+pub(crate) fn go_nuclear(save: &SaveGame) -> AchievementEvaluation {
+    deliveries_to_company(
+        save,
+        "nucleon",
+        &FRENCH_NUCLEAR_PLANT_CITIES,
+        3,
+        "nuclear plants",
+    )
+}
+
+pub(crate) fn whatever_floats_your_boat(save: &SaveGame) -> AchievementEvaluation {
+    deliveries_to_company(
+        save,
+        "cont_port",
+        &SCANDINAVIA_CONTAINER_PORT_CITIES,
+        1,
+        "container ports",
+    )
+}
+
+pub(crate) fn captain(save: &SaveGame) -> AchievementEvaluation {
+    deliveries_to_company(save, "c_navale", &[], 1, "shipyards")
+}
+
+/// Distinct destination cities of deliveries to `company` (optionally only in
+/// `cities`).
+fn deliveries_to_company(
+    save: &SaveGame,
+    company: &str,
+    cities: &[&str],
+    target: u32,
+    unit: &'static str,
+) -> AchievementEvaluation {
+    let reached = save
+        .delivery_log
+        .entries
+        .iter()
+        .filter(|entry| company_id(&entry.destination_company) == company)
+        .map(|entry| company_city(&entry.destination_company).to_string())
+        .filter(|city| cities.is_empty() || cities.contains(&city.as_str()))
+        .collect::<BTreeSet<_>>();
+    let mut evaluation = set_achievement(&reached, target, unit, "Delivered to");
+    if !cities.is_empty() {
+        let missing = cities
+            .iter()
+            .filter(|city| !reached.contains(**city))
+            .map(|city| (*city).to_string())
+            .collect::<BTreeSet<_>>();
+        evaluation.evidence.push(AchievementEvidence {
+            label: "Not yet".to_string(),
+            value: if missing.is_empty() {
+                "none".to_string()
+            } else {
+                summarize_set(&missing, SUMMARY_EVIDENCE_LIMIT)
+            },
+            items: Vec::new(),
+            complete: missing.is_empty(),
+        });
+    }
+    evaluation
+}
+
+/// Progress towards `target` distinct values, listing them as evidence.
+fn set_achievement(
+    values: &BTreeSet<String>,
+    target: u32,
+    unit: &'static str,
+    label: &str,
+) -> AchievementEvaluation {
+    let current = values.len() as u32;
+    AchievementEvaluation {
+        status: status_from_progress(current, target),
+        progress: AchievementProgress {
+            current,
+            target,
+            unit,
+        },
+        evidence: vec![AchievementEvidence {
+            label: label.to_string(),
+            value: summarize_set(values, SUMMARY_EVIDENCE_LIMIT),
+            items: set_items(values),
+            complete: current >= target,
+        }],
+    }
+}
+
+/// Progress of a single save counter towards `target`.
+fn counter(
+    value: Option<u32>,
+    target: u32,
+    unit: &'static str,
+    label: &str,
+) -> AchievementEvaluation {
+    let Some(current) = value else {
+        return missing_data(target, unit, label);
+    };
+    AchievementEvaluation {
+        status: status_from_progress(current, target),
+        progress: AchievementProgress {
+            current,
+            target,
+            unit,
+        },
+        evidence: vec![AchievementEvidence {
+            label: label.to_string(),
+            value: format!("{current} {unit}"),
+            items: Vec::new(),
+            complete: current >= target,
+        }],
+    }
+}
+
+fn missing_data(target: u32, unit: &'static str, label: &str) -> AchievementEvaluation {
+    AchievementEvaluation {
+        status: AchievementStatus::InProgress,
+        progress: AchievementProgress {
+            current: 0,
+            target,
+            unit,
+        },
+        evidence: vec![AchievementEvidence {
+            label: label.to_string(),
+            value: "not found in this save".to_string(),
+            items: Vec::new(),
+            complete: false,
+        }],
+    }
+}
+
+fn saturating_u32(value: u64) -> u32 {
+    u32::try_from(value).unwrap_or(u32::MAX)
+}
+
+pub(crate) fn size_matters(save: &SaveGame) -> AchievementEvaluation {
+    let deliveries = oversize_deliveries(save).count() as u32;
+    let cargos = oversize_cargos(save);
+
+    AchievementEvaluation {
+        status: status_from_progress(deliveries, 1),
+        progress: AchievementProgress {
+            current: deliveries,
+            target: 1,
+            unit: "oversize deliveries",
+        },
+        evidence: vec![AchievementEvidence {
+            label: "Oversize cargoes".to_string(),
+            value: summarize_set(&cargos, SUMMARY_EVIDENCE_LIMIT),
+            items: set_items(&cargos),
+            complete: deliveries >= 1,
+        }],
+    }
+}
+
+pub(crate) fn the_bigger_the_better(save: &SaveGame) -> AchievementEvaluation {
+    let cargos = oversize_cargos(save);
+    let current = cargos.len() as u32;
+
+    AchievementEvaluation {
+        status: status_from_progress(current, THE_BIGGER_THE_BETTER_TARGET_CARGOS),
+        progress: AchievementProgress {
+            current,
+            target: THE_BIGGER_THE_BETTER_TARGET_CARGOS,
+            unit: "oversize cargoes",
+        },
+        evidence: vec![AchievementEvidence {
+            label: "Oversize cargoes".to_string(),
+            value: summarize_set(&cargos, SUMMARY_EVIDENCE_LIMIT),
+            items: set_items(&cargos),
+            complete: current >= THE_BIGGER_THE_BETTER_TARGET_CARGOS,
+        }],
+    }
+}
+
+pub(crate) fn giant(save: &SaveGame) -> AchievementEvaluation {
+    oversize_cargo_delivered(save, "silo")
+}
+
+pub(crate) fn not_a_canoe(save: &SaveGame) -> AchievementEvaluation {
+    oversize_cargo_delivered(save, "boat")
+}
+
+pub(crate) fn volvo_trucks_lover(save: &SaveGame) -> AchievementEvaluation {
+    cargo_delivered(save, "volvo_tr")
+}
+
+pub(crate) fn scania_trucks_lover(save: &SaveGame) -> AchievementEvaluation {
+    cargo_delivered(save, "scania_tr")
+}
+
+pub(crate) fn turkish_delight(save: &SaveGame) -> AchievementEvaluation {
+    let qualifying = save
+        .delivery_log
+        .entries
+        .iter()
+        .filter(|entry| {
+            company_city(&entry.source_company) == ISTANBUL
+                && entry.distance_km >= TURKISH_DELIGHT_MIN_DISTANCE_KM
+        })
+        .map(route_summary)
+        .collect::<Vec<_>>();
+    let current = qualifying.len() as u32;
+
+    AchievementEvaluation {
+        status: status_from_progress(current, TURKISH_DELIGHT_TARGET_DELIVERIES),
+        progress: AchievementProgress {
+            current,
+            target: TURKISH_DELIGHT_TARGET_DELIVERIES,
+            unit: "deliveries",
+        },
+        evidence: vec![AchievementEvidence {
+            label: "From Istanbul, 2,500 km or more".to_string(),
+            value: summarize_list(&qualifying),
+            items: qualifying.clone(),
+            complete: current >= TURKISH_DELIGHT_TARGET_DELIVERIES,
+        }],
+    }
+}
+
+pub(crate) fn orient_express(save: &SaveGame) -> AchievementEvaluation {
+    route_legs(save, &ORIENT_EXPRESS_LEGS, true)
+}
+
+pub(crate) fn iberian_pilgrimage(save: &SaveGame) -> AchievementEvaluation {
+    route_legs(save, &IBERIAN_PILGRIMAGE_LEGS, false)
+}
+
+fn oversize_deliveries(save: &SaveGame) -> impl Iterator<Item = &DeliveryLogEntry> {
+    save.delivery_log
+        .entries
+        .iter()
+        .filter(|entry| entry.job_type == OVERSIZE_JOB_TYPE)
+}
+
+fn oversize_cargos(save: &SaveGame) -> BTreeSet<String> {
+    oversize_deliveries(save)
+        .map(|entry| cargo_id(&entry.cargo).to_string())
+        .filter(|cargo| !cargo.is_empty())
+        .collect()
+}
+
+/// Special Transport cargo IDs are matched by a distinctive token
+/// (`silo`, `785` for the Cat 785C chassis, `boat` for the service boat).
+fn oversize_cargo_delivered(save: &SaveGame, token: &str) -> AchievementEvaluation {
+    let cargos = oversize_cargos(save);
+    let matching = cargos
+        .iter()
+        .filter(|cargo| cargo.contains(token))
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    let deliveries = oversize_deliveries(save)
+        .filter(|entry| cargo_id(&entry.cargo).contains(token))
+        .count() as u32;
+    let complete = deliveries >= 1;
+
+    AchievementEvaluation {
+        status: status_from_progress(deliveries, 1),
+        progress: AchievementProgress {
+            current: deliveries,
+            target: 1,
+            unit: "deliveries",
+        },
+        evidence: vec![
+            AchievementEvidence {
+                label: "Matching cargo".to_string(),
+                value: summarize_set(&matching, SUMMARY_EVIDENCE_LIMIT),
+                items: Vec::new(),
+                complete,
+            },
+            AchievementEvidence {
+                label: "All oversize cargoes".to_string(),
+                value: summarize_set(&cargos, SUMMARY_EVIDENCE_LIMIT),
+                items: set_items(&cargos),
+                complete,
+            },
+        ],
+    }
+}
+
+fn cargo_delivered(save: &SaveGame, cargo: &str) -> AchievementEvaluation {
+    let deliveries = save
+        .delivery_log
+        .entries
+        .iter()
+        .filter(|entry| cargo_id(&entry.cargo) == cargo)
+        .map(route_summary)
+        .collect::<Vec<_>>();
+    let current = deliveries.len() as u32;
+
+    AchievementEvaluation {
+        status: status_from_progress(current, 1),
+        progress: AchievementProgress {
+            current,
+            target: 1,
+            unit: "deliveries",
+        },
+        evidence: vec![AchievementEvidence {
+            label: format!("{cargo} deliveries"),
+            value: summarize_list(&deliveries),
+            items: deliveries.clone(),
+            complete: current >= 1,
+        }],
+    }
+}
+
+/// Checks which `(source city, destination city)` legs appear in the delivery
+/// log, in the given direction. When `in_order` is set, each leg only counts
+/// if it was delivered after the previous one (the log is oldest first).
+fn route_legs(
+    save: &SaveGame,
+    legs: &[(&'static str, &'static str)],
+    in_order: bool,
+) -> AchievementEvaluation {
+    let entries = &save.delivery_log.entries;
+    let is_leg = |entry: &DeliveryLogEntry, from: &str, to: &str| {
+        company_city(&entry.source_company) == from
+            && company_city(&entry.destination_company) == to
+    };
+    let mut next_index = 0;
+    let mut chain_broken = false;
+    let evidence = legs
+        .iter()
+        .map(|(from, to)| {
+            let complete = if in_order {
+                let found = (!chain_broken)
+                    .then(|| {
+                        entries[next_index..]
+                            .iter()
+                            .position(|entry| is_leg(entry, from, to))
+                    })
+                    .flatten();
+                match found {
+                    Some(offset) => {
+                        next_index += offset + 1;
+                        true
+                    }
+                    None => {
+                        chain_broken = true;
+                        false
+                    }
+                }
+            } else {
+                entries.iter().any(|entry| is_leg(entry, from, to))
+            };
+            let count = entries
+                .iter()
+                .filter(|entry| is_leg(entry, from, to))
+                .count();
+            AchievementEvidence {
+                label: format!("{from} → {to}"),
+                value: match (count, complete) {
+                    (0, _) => "missing".to_string(),
+                    (_, true) => format!("{count} deliveries"),
+                    (_, false) => format!("{count} deliveries, but not after the previous leg"),
+                },
+                items: Vec::new(),
+                complete,
+            }
+        })
+        .collect::<Vec<_>>();
+    let current = evidence.iter().filter(|item| item.complete).count() as u32;
+    let target = legs.len() as u32;
+
+    AchievementEvaluation {
+        status: status_from_progress(current, target),
+        progress: AchievementProgress {
+            current,
+            target,
+            unit: "routes",
+        },
+        evidence,
+    }
+}
+
+fn route_summary(entry: &DeliveryLogEntry) -> String {
+    format!(
+        "{} → {}, {}, {} km",
+        company_city(&entry.source_company),
+        company_city(&entry.destination_company),
+        cargo_id(&entry.cargo),
+        entry.distance_km
+    )
+}
+
+fn summarize_list(values: &[String]) -> String {
+    if values.is_empty() {
+        return "missing".to_string();
+    }
+    let mut summary = values
+        .iter()
+        .take(SUMMARY_EVIDENCE_LIMIT)
+        .cloned()
+        .collect::<Vec<_>>();
+    if values.len() > SUMMARY_EVIDENCE_LIMIT {
+        summary.push(format!("+{} more", values.len() - SUMMARY_EVIDENCE_LIMIT));
+    }
+    summary.join("; ")
 }
 
 fn status_from_progress(current: u32, target: u32) -> AchievementStatus {
@@ -619,6 +941,7 @@ fn display_truck_brand(brand: &str) -> &str {
         "renault" => "Renault",
         "scania" => "Scania",
         "volvo" => "Volvo",
+        "volkswagen" => "Volkswagen",
         _ => brand,
     }
 }
@@ -669,7 +992,9 @@ fn profit_hunter_criteria_met(entry: &DeliveryLogEntry) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ets2::{DeliveryLog, DeliveryLogEntry};
+    use crate::ets2::{
+        CareerStats, DeliveryLog, DeliveryLogEntry, FerryCrossing, Garage, GarageSize,
+    };
 
     #[test]
     fn evaluates_experience_beats_all() {
@@ -838,10 +1163,35 @@ mod tests {
     }
 
     #[test]
-    fn registry_lists_all_29_base_game_achievements_in_steam_order() {
+    fn registry_lists_every_steam_achievement_grouped_by_set() {
         let registry = evaluate_achievements(&save_with_entries(Vec::new()));
 
-        assert_eq!(registry.achievements.len(), 29);
+        assert_eq!(registry.achievements.len(), 110);
+        assert_eq!(registry.groups.len(), 15);
+        assert_eq!(registry.groups[0].id, "base_game");
+        assert_eq!(registry.groups[0].name, "Base Game");
+        assert_eq!(registry.groups[0].steam_dlc_app_id, None);
+
+        let count_in = |group: &str| {
+            registry
+                .achievements
+                .iter()
+                .filter(|achievement| achievement.group == group)
+                .count()
+        };
+        assert_eq!(count_in("base_game"), 29);
+        assert_eq!(count_in("special_transport"), 8);
+        assert_eq!(count_in("driving_academy"), 10);
+        assert_eq!(count_in("iceland"), 4);
+        assert_eq!(
+            registry
+                .groups
+                .iter()
+                .map(|group| count_in(group.id))
+                .sum::<usize>(),
+            110
+        );
+
         assert_eq!(registry.achievements[0].steam_api_name, "map_discover_60");
         assert_eq!(
             registry.achievements[28].steam_api_name,
@@ -858,8 +1208,8 @@ mod tests {
             .iter()
             .map(|achievement| achievement.steam_api_name)
             .collect::<BTreeSet<_>>();
-        assert_eq!(ids.len(), 29);
-        assert_eq!(api_names.len(), 29);
+        assert_eq!(ids.len(), 110);
+        assert_eq!(api_names.len(), 110);
     }
 
     #[test]
@@ -875,22 +1225,269 @@ mod tests {
         assert_eq!(
             tracked,
             BTreeSet::from([
+                // Base game
                 "all_is_possible",
+                "choo_choo",
+                "diesel_no_petrol",
                 "experience_beats_all",
+                "from_the_comfort_of_your_home",
+                "head_hunter",
                 "long_hauler",
                 "profit_hunter",
+                "property_magnate",
                 "reliable_contractor",
+                "sardine",
                 "test_drive_limited",
+                // DLC sets
+                "captain",
+                "giant",
+                "go_nuclear",
+                "iberian_pilgrimage",
+                "not_a_canoe",
+                "orient_express",
+                "scania_trucks_lover",
+                "size_matters",
+                "the_bigger_the_better",
+                "turkish_delight",
+                "volvo_trucks_lover",
+                "whatever_floats_your_boat",
             ])
         );
 
-        let untracked = achievement_by_id(&save_with_entries(Vec::new()), "property_magnate");
-        assert_eq!(untracked.display_name, "Property Magnate");
-        assert_eq!(untracked.description, "Own at least 30 garages");
+        let untracked = achievement_by_id(&save_with_entries(Vec::new()), "national_company");
+        assert_eq!(untracked.display_name, "National Company");
         assert_eq!(untracked.status, AchievementStatus::NotTracked);
         assert_eq!(untracked.evidence.len(), 1);
         assert!(!untracked.evidence[0].complete);
-        assert!(untracked.evidence[0].value.contains("owned garage data"));
+        assert!(untracked.evidence[0].value.contains("cities to countries"));
+
+        // Tracked achievements whose save data is absent stay in progress.
+        let no_garages = achievement_by_id(&save_with_entries(Vec::new()), "property_magnate");
+        assert_eq!(no_garages.status, AchievementStatus::InProgress);
+        assert_eq!(no_garages.evidence[0].value, "not found in this save");
+
+        let academy = achievement_by_id(&save_with_entries(Vec::new()), "double_trouble");
+        assert_eq!(academy.group, "driving_academy");
+        assert_eq!(academy.status, AchievementStatus::NotTracked);
+    }
+
+    #[test]
+    fn evaluates_special_transport_achievements_from_oversize_jobs() {
+        let mut entries = vec![
+            entry("cargo.silo", 400, "vehicle.volvo.fh16", "spec_oversize"),
+            entry("cargo.silo", 380, "vehicle.volvo.fh16", "spec_oversize"),
+            entry(
+                "cargo.pilot_boat",
+                300,
+                "vehicle.volvo.fh16",
+                "spec_oversize",
+            ),
+            // A regular job never counts towards Special Transport achievements.
+            entry("cargo.cat_785c", 300, "vehicle.volvo.fh16", "cargo"),
+        ];
+        entries.extend((0..8).map(|index| {
+            entry(
+                &format!("cargo.oversize_{index}"),
+                300,
+                "vehicle.volvo.fh16",
+                "spec_oversize",
+            )
+        }));
+        let save = save_with_entries(entries);
+
+        let size_matters = achievement_by_id(&save, "size_matters");
+        assert_eq!(size_matters.status, AchievementStatus::Complete);
+        assert_eq!(size_matters.progress.current, 11);
+
+        let bigger = achievement_by_id(&save, "the_bigger_the_better");
+        assert_eq!(bigger.status, AchievementStatus::Complete);
+        assert_eq!(bigger.progress.current, 10);
+        assert!(!bigger.evidence[0].items.contains(&"cat_785c".to_string()));
+
+        assert_eq!(
+            achievement_by_id(&save, "giant").status,
+            AchievementStatus::Complete
+        );
+        assert_eq!(achievement_by_id(&save, "giant").progress.current, 2);
+        assert_eq!(
+            achievement_by_id(&save, "not_a_canoe").status,
+            AchievementStatus::Complete
+        );
+        // The Haul Truck Chassis cargo ID is unconfirmed, so it stays untracked.
+        assert_eq!(
+            achievement_by_id(&save, "big_brother").status,
+            AchievementStatus::NotTracked
+        );
+    }
+
+    #[test]
+    fn evaluates_truck_factory_cargo_achievements() {
+        let save = save_with_entries(vec![DeliveryLogEntry {
+            source_company: "company.volatile.volvo_fac.goteborg".to_string(),
+            ..entry("cargo.volvo_tr", 500, "vehicle.man.tgx", "quick")
+        }]);
+
+        let volvo = achievement_by_id(&save, "volvo_trucks_lover");
+        assert_eq!(volvo.status, AchievementStatus::Complete);
+        assert_eq!(
+            volvo.evidence[0].items,
+            vec!["goteborg → amsterdam, volvo_tr, 500 km".to_string()]
+        );
+        assert_eq!(
+            achievement_by_id(&save, "scania_trucks_lover").status,
+            AchievementStatus::InProgress
+        );
+    }
+
+    #[test]
+    fn evaluates_turkish_delight() {
+        let save = save_with_entries(vec![
+            route_entry("istanbul", "lisboa", 2500),
+            route_entry("istanbul", "porto", 3100),
+            route_entry("istanbul", "sofia", 2499),
+            route_entry("ankara", "lisboa", 3000),
+        ]);
+
+        let achievement = achievement_by_id(&save, "turkish_delight");
+
+        assert_eq!(achievement.status, AchievementStatus::InProgress);
+        assert_eq!(achievement.progress.current, 2);
+        assert_eq!(achievement.progress.target, 3);
+    }
+
+    #[test]
+    fn evaluates_career_counter_achievements() {
+        let mut save = save_with_entries(Vec::new());
+        save.career = CareerStats {
+            discovered_road_km: Some(25_000.7),
+            sleeping_count: Some(0),
+            hq_city: Some("toulouse".to_string()),
+            unlocked_recruitments: Some((0..41).map(|index| format!("city_{index}")).collect()),
+            trucks_bought_online: Some(2),
+            gas_station_visits: Some(38),
+            garages: None,
+            ferry_crossings: Some(vec![
+                crossing("tunnel_c", "tunnel_d"),
+                crossing("hull", "esbjerg"),
+                crossing("rostock", "trelleborg"),
+                crossing("esbjerg", "hull"),
+            ]),
+        };
+
+        let status = |id| achievement_by_id(&save, id).status;
+        assert_eq!(status("head_hunter"), AchievementStatus::Complete);
+        assert_eq!(
+            status("from_the_comfort_of_your_home"),
+            AchievementStatus::Complete
+        );
+        assert_eq!(status("diesel_no_petrol"), AchievementStatus::Complete);
+        assert_eq!(status("choo_choo"), AchievementStatus::Complete);
+        assert_eq!(status("sardine"), AchievementStatus::Complete);
+        // Present in the save, but not confirmed enough to track.
+        for id in ["i_am_a_gps", "pathfinder", "zzzzz", "successfully_docked"] {
+            assert_eq!(status(id), AchievementStatus::NotTracked, "{id}");
+        }
+
+        save.career.ferry_crossings = Some(vec![crossing("hull", "esbjerg")]);
+        assert_eq!(
+            achievement_by_id(&save, "choo_choo").status,
+            AchievementStatus::InProgress
+        );
+    }
+
+    #[test]
+    fn evaluates_property_magnate_from_owned_garages() {
+        let mut save = save_with_entries(Vec::new());
+        let mut garages = vec![garage("dijon", GarageSize::Tiny, 1.0)];
+        garages
+            .extend((0..19).map(|index| garage(&format!("small_{index}"), GarageSize::Small, 0.5)));
+        garages
+            .extend((0..10).map(|index| garage(&format!("large_{index}"), GarageSize::Large, 0.5)));
+        garages.push(garage("grimsby", GarageSize::NotOwned, 0.0));
+        save.career.garages = Some(garages);
+
+        let magnate = achievement_by_id(&save, "property_magnate");
+        assert_eq!(magnate.progress.current, 30);
+        assert_eq!(magnate.status, AchievementStatus::Complete);
+        assert!(!magnate.evidence[0].items.contains(&"grimsby".to_string()));
+
+        save.career.garages.as_mut().unwrap().remove(0);
+        assert_eq!(
+            achievement_by_id(&save, "property_magnate").status,
+            AchievementStatus::InProgress
+        );
+    }
+
+    #[test]
+    fn evaluates_route_legs_by_direction_and_order() {
+        let orient_express = [
+            ("paris", "strasbourg"),
+            ("strasbourg", "munchen"),
+            ("munchen", "wien"),
+            ("wien", "budapest"),
+            ("budapest", "bucuresti"),
+            ("bucuresti", "istanbul"),
+        ];
+        // The second leg is driven before the first one.
+        let mut entries = vec![route_entry("strasbourg", "munchen", 360)];
+        entries.extend(
+            orient_express
+                .iter()
+                .map(|(from, to)| route_entry(from, to, 500)),
+        );
+        let save = save_with_entries(entries[..2].to_vec());
+        let orient = achievement_by_id(&save, "orient_express");
+        assert_eq!(orient.progress.current, 1);
+        assert_eq!(
+            orient.evidence[1].value,
+            "1 deliveries, but not after the previous leg"
+        );
+
+        let orient = achievement_by_id(&save_with_entries(entries), "orient_express");
+        assert_eq!(orient.status, AchievementStatus::Complete);
+        assert_eq!(orient.progress.current, 6);
+
+        let pilgrimage = achievement_by_id(
+            &save_with_entries(vec![
+                route_entry("sevilla", "a_coruna", 900),
+                route_entry("lisboa", "a_coruna", 600),
+                // Wrong direction: does not count.
+                route_entry("a_coruna", "pamplona", 700),
+            ]),
+            "iberian_pilgrimage",
+        );
+        // Order does not matter for this one.
+        assert_eq!(pilgrimage.progress.current, 2);
+        assert_eq!(pilgrimage.status, AchievementStatus::InProgress);
+    }
+
+    #[test]
+    fn evaluates_company_destination_achievements() {
+        let to = |company: &str, cargo: &str| DeliveryLogEntry {
+            destination_company: format!("company.volatile.{company}"),
+            ..entry(cargo, 300, "vehicle.man.tgx", "cargo")
+        };
+        let save = save_with_entries(vec![
+            to("nucleon.alban", "cargo.acid"),
+            to("nucleon.golfech", "cargo.acid"),
+            // Not in France.
+            to("nucleon.kozloduy", "cargo.acid"),
+            to("c_navale.messina", "cargo.lumber"),
+            to("cont_port.esbjerg", "cargo.lumber"),
+        ]);
+
+        let nuclear = achievement_by_id(&save, "go_nuclear");
+        assert_eq!(nuclear.progress.current, 2);
+        assert_eq!(nuclear.status, AchievementStatus::InProgress);
+        assert_eq!(nuclear.evidence[1].value, "civaux, laurent, paluel");
+
+        assert_eq!(
+            achievement_by_id(&save, "captain").status,
+            AchievementStatus::Complete
+        );
+        let boat = achievement_by_id(&save, "whatever_floats_your_boat");
+        assert_eq!(boat.status, AchievementStatus::Complete);
+        assert_eq!(boat.evidence[1].value, "oslo");
     }
 
     #[test]
@@ -918,9 +1515,7 @@ mod tests {
     }
 
     fn save_with_entries(entries: Vec<DeliveryLogEntry>) -> SaveGame {
-        SaveGame {
-            delivery_log: DeliveryLog::from_entries(entries),
-        }
+        SaveGame::from_delivery_log(DeliveryLog::from_entries(entries))
     }
 
     fn entry(cargo: &str, distance_km: u32, truck: &str, job_type: &str) -> DeliveryLogEntry {
@@ -932,6 +1527,31 @@ mod tests {
             revenue: 1000.0,
             truck: truck.to_string(),
             job_type: job_type.to_string(),
+            ..DeliveryLogEntry::default()
+        }
+    }
+
+    fn crossing(from: &str, to: &str) -> FerryCrossing {
+        FerryCrossing {
+            from: from.to_string(),
+            to: to.to_string(),
+            use_count: 1,
+        }
+    }
+
+    fn garage(city: &str, size: GarageSize, productivity: f64) -> Garage {
+        Garage {
+            city: city.to_string(),
+            size,
+            productivity,
+        }
+    }
+
+    fn route_entry(from_city: &str, to_city: &str, distance_km: u32) -> DeliveryLogEntry {
+        DeliveryLogEntry {
+            source_company: format!("company.volatile.source.{from_city}"),
+            destination_company: format!("company.volatile.destination.{to_city}"),
+            ..entry("cargo.gravel", distance_km, "vehicle.man.tgx", "cargo")
         }
     }
 

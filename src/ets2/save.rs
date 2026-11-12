@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::bsii_file::{BsiiFile, DataBlock, DataValue};
+use crate::bsii_file::{BsiiFile, DataBlock, DataValue, Id};
 use crate::ets2::generated::cargo_metadata::CARGOS;
 use crate::ets2::CargoMetadata;
 
@@ -10,18 +10,99 @@ pub const VEHICLE_PREFIX: &str = "vehicle.";
 
 // Delivery log params are reverse engineered by the community:
 // https://forum.scssoft.com/viewtopic.php?start=10&t=317674
+// Entries are stored oldest first (params[0], the delivery end time, only grows).
 const SOURCE_COMPANY_PARAM: usize = 1;
 const DESTINATION_COMPANY_PARAM: usize = 2;
 const CARGO_PARAM: usize = 3;
+const XP_PARAM: usize = 4;
 const REVENUE_PARAM: usize = 5;
 const DISTANCE_PARAM: usize = 6;
+const CARGO_DAMAGE_PARAM: usize = 7;
 const TRUCK_PARAM: usize = 16;
 const JOB_TYPE_PARAM: usize = 18;
+// Only present in newer saves.
+const SPECIAL_ROUTE_PARAM: usize = 19;
+const CARGO_MASS_PARAM: usize = 22;
 const MIN_PARAMS_LEN: usize = JOB_TYPE_PARAM + 1;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SaveGame {
     pub delivery_log: DeliveryLog,
+    pub career: CareerStats,
+}
+
+/// Career-wide counters and lists stored outside the delivery log.
+/// Every field is optional so that a save missing a block still analyses.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct CareerStats {
+    /// `player.discovary_distance` (sic), in km.
+    pub discovered_road_km: Option<f64>,
+    /// `player.sleeping_count`: times the player slept at a rest stop.
+    pub sleeping_count: Option<u64>,
+    /// `player.hq_city`.
+    pub hq_city: Option<String>,
+    /// `economy.unlocked_recruitments`: cities whose recruitment agency is discovered.
+    pub unlocked_recruitments: Option<Vec<String>>,
+    /// `economy.trucks_bought_online`.
+    pub trucks_bought_online: Option<u64>,
+    /// `economy.gas_station_visit_count`.
+    pub gas_station_visits: Option<u64>,
+    /// All `garage` blocks; `None` when the save has none.
+    pub garages: Option<Vec<Garage>>,
+    /// All `ferry_log_entry` blocks; `None` when the save has no `ferry_log`.
+    pub ferry_crossings: Option<Vec<FerryCrossing>>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Garage {
+    pub city: String,
+    pub size: GarageSize,
+    /// 0.0 to 1.0.
+    pub productivity: f64,
+}
+
+/// `garage.status`, identified by the number of vehicle slots each status has.
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum GarageSize {
+    NotOwned,
+    /// Status 6: the 1-slot starter garage.
+    Tiny,
+    /// Status 2: 3 slots.
+    Small,
+    /// Status 3: 5 slots.
+    Large,
+    Other(u32),
+}
+
+impl GarageSize {
+    pub fn from_status(status: u32) -> Self {
+        match status {
+            0 => GarageSize::NotOwned,
+            2 => GarageSize::Small,
+            3 => GarageSize::Large,
+            6 => GarageSize::Tiny,
+            other => GarageSize::Other(other),
+        }
+    }
+
+    pub fn is_owned(self) -> bool {
+        self != GarageSize::NotOwned
+    }
+}
+
+/// One ferry or train connection the player has used (`ferry_log_entry`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct FerryCrossing {
+    pub from: String,
+    pub to: String,
+    pub use_count: u64,
+}
+
+impl FerryCrossing {
+    /// The Channel Tunnel train between Calais and Folkestone.
+    pub fn is_train(&self) -> bool {
+        self.from.starts_with("tunnel") || self.to.starts_with("tunnel")
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -29,7 +110,7 @@ pub struct DeliveryLog {
     pub entries: Vec<DeliveryLogEntry>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct DeliveryLogEntry {
     pub source_company: String,
     pub destination_company: String,
@@ -38,6 +119,12 @@ pub struct DeliveryLogEntry {
     pub revenue: f64,
     pub truck: String,
     pub job_type: String,
+    pub xp: u32,
+    /// Fraction of cargo damage, 0.0 to 1.0.
+    pub cargo_damage: f64,
+    /// Special Transport route ID, empty for other jobs.
+    pub special_route: String,
+    pub cargo_mass_kg: Option<f64>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -74,7 +161,18 @@ impl std::error::Error for SaveGameError {}
 impl SaveGame {
     pub fn from_bsii(bsii: &BsiiFile<'_>) -> Result<Self, SaveGameError> {
         let delivery_log = DeliveryLog::from_bsii(bsii)?;
-        Ok(Self { delivery_log })
+        let career = CareerStats::from_bsii(bsii);
+        Ok(Self {
+            delivery_log,
+            career,
+        })
+    }
+
+    pub fn from_delivery_log(delivery_log: DeliveryLog) -> Self {
+        Self {
+            delivery_log,
+            career: CareerStats::default(),
+        }
     }
 
     pub fn analytics(&self) -> DeliveryAnalytics {
@@ -184,6 +282,17 @@ impl DeliveryLogEntry {
             revenue: params[REVENUE_PARAM].parse().ok()?,
             truck: params[TRUCK_PARAM].to_string(),
             job_type: params[JOB_TYPE_PARAM].to_string(),
+            xp: params[XP_PARAM]
+                .parse::<i64>()
+                .map_or(0, |xp| xp.clamp(0, i64::from(u32::MAX)) as u32),
+            cargo_damage: params[CARGO_DAMAGE_PARAM].parse().unwrap_or(0.0),
+            special_route: params
+                .get(SPECIAL_ROUTE_PARAM)
+                .map_or_else(String::new, |route| route.to_string()),
+            cargo_mass_kg: params
+                .get(CARGO_MASS_PARAM)
+                .and_then(|mass| mass.parse::<f64>().ok())
+                .filter(|mass| *mass >= 0.0),
         })
     }
 
@@ -193,6 +302,119 @@ impl DeliveryLogEntry {
             _ => return None,
         };
         Self::from_params(params)
+    }
+}
+
+impl CareerStats {
+    pub fn from_bsii(bsii: &BsiiFile<'_>) -> Self {
+        let economy = bsii.blocks_by_prototype_name("economy").next();
+        let player = bsii.blocks_by_prototype_name("player").next();
+        let economy_field = |name: &str| economy.and_then(|block| block.field(bsii, name));
+        let player_field = |name: &str| player.and_then(|block| block.field(bsii, name));
+
+        let garages = bsii
+            .blocks_by_prototype_name("garage")
+            .map(|block| Garage {
+                city: last_id_part(&block.id),
+                size: GarageSize::from_status(
+                    block
+                        .field(bsii, "status")
+                        .and_then(value_as_u64)
+                        .unwrap_or(0) as u32,
+                ),
+                productivity: block
+                    .field(bsii, "productivity")
+                    .and_then(value_as_f64)
+                    .unwrap_or(0.0),
+            })
+            .collect::<Vec<_>>();
+        let has_ferry_log = bsii.blocks_by_prototype_name("ferry_log").next().is_some();
+        let ferry_crossings = bsii
+            .blocks_by_prototype_name("ferry_log_entry")
+            .filter_map(|block| {
+                Some(FerryCrossing {
+                    from: block.field(bsii, "ferry").and_then(value_as_string)?,
+                    to: block.field(bsii, "connection").and_then(value_as_string)?,
+                    use_count: block
+                        .field(bsii, "use_count")
+                        .and_then(value_as_u64)
+                        .unwrap_or(0),
+                })
+            })
+            .collect::<Vec<_>>();
+
+        Self {
+            discovered_road_km: player_field("discovary_distance").and_then(value_as_f64),
+            sleeping_count: player_field("sleeping_count").and_then(value_as_u64),
+            hq_city: player_field("hq_city").and_then(value_as_string),
+            unlocked_recruitments: economy_field("unlocked_recruitments")
+                .and_then(value_as_string_array),
+            trucks_bought_online: economy_field("trucks_bought_online").and_then(value_as_u64),
+            gas_station_visits: economy_field("gas_station_visit_count").and_then(value_as_u64),
+            garages: (!garages.is_empty()).then_some(garages),
+            ferry_crossings: (has_ferry_log || !ferry_crossings.is_empty())
+                .then_some(ferry_crossings),
+        }
+    }
+}
+
+fn last_id_part(id: &Id) -> String {
+    match id {
+        Id::Named(parts) => parts.last().cloned().unwrap_or_default(),
+        Id::Nameless(value) => value.to_string(),
+    }
+}
+
+fn value_as_u64(value: &DataValue<'_>) -> Option<u64> {
+    match value {
+        DataValue::Int32(value) => u64::try_from(*value).ok(),
+        DataValue::UInt32(value) | DataValue::Enum(value) => Some(u64::from(*value)),
+        DataValue::UInt16(value) => Some(u64::from(*value)),
+        DataValue::Int64(value) => u64::try_from(*value).ok(),
+        DataValue::UInt64(value) => Some(*value),
+        DataValue::Float(value) if *value >= 0.0 => Some(*value as u64),
+        _ => None,
+    }
+}
+
+fn value_as_f64(value: &DataValue<'_>) -> Option<f64> {
+    match value {
+        DataValue::Float(value) => Some(f64::from(*value)),
+        DataValue::Int32(value) => Some(f64::from(*value)),
+        DataValue::UInt32(value) => Some(f64::from(*value)),
+        DataValue::UInt16(value) => Some(f64::from(*value)),
+        DataValue::Int64(value) => Some(*value as f64),
+        DataValue::UInt64(value) => Some(*value as f64),
+        _ => None,
+    }
+}
+
+/// Tokens decode as strings; some fields are links (IDs) that render the same
+/// way in text saves, so accept those too.
+fn value_as_string(value: &DataValue<'_>) -> Option<String> {
+    match value {
+        DataValue::String(value) => Some((*value).to_string()),
+        DataValue::EncodedString(value) => Some(value.clone()),
+        DataValue::Id(Id::Named(parts)) => Some(parts.join(".")),
+        _ => None,
+    }
+}
+
+fn value_as_string_array(value: &DataValue<'_>) -> Option<Vec<String>> {
+    match value {
+        DataValue::StringArray(values) => {
+            Some(values.iter().map(|value| (*value).to_string()).collect())
+        }
+        DataValue::EncodedStringArray(values) => Some(values.clone()),
+        DataValue::IdArray(ids) => Some(
+            ids.iter()
+                .filter_map(|id| match id {
+                    Id::Named(parts) => Some(parts.join(".")),
+                    Id::Nameless(_) => None,
+                })
+                .collect(),
+        ),
+        _ => None,
     }
 }
 
@@ -241,6 +463,14 @@ pub fn company_id(company: &str) -> &str {
         .split('.')
         .next()
         .unwrap_or(company)
+}
+
+/// City ID of a `company.volatile.<company>.<city>` delivery log company.
+pub fn company_city(company: &str) -> &str {
+    company
+        .strip_prefix(COMPANY_PREFIX)
+        .and_then(|rest| rest.split_once('.'))
+        .map_or("", |(_, city)| city)
 }
 
 pub fn truck_brand(truck: &str) -> &str {
@@ -355,11 +585,178 @@ mod tests {
 
         assert_eq!(entry.source_company, "company.volatile.lkwlog.amsterdam");
         assert_eq!(company_id(&entry.source_company), "lkwlog");
+        assert_eq!(company_city(&entry.source_company), "amsterdam");
+        assert_eq!(company_city(""), "");
         assert_eq!(cargo_id(&entry.cargo), "gravel");
         assert_eq!(entry.distance_km, 362);
         assert_eq!(entry.revenue, 16930.0);
         assert_eq!(truck_brand(&entry.truck), "mercedes");
         assert_eq!(entry.job_type, "quick");
+    }
+
+    #[test]
+    fn parses_newer_delivery_params() {
+        // Shape of a 24-param entry from a 1.5x save.
+        let params = [
+            "8423653",
+            "company.volatile.app.coimbra",
+            "company.volatile.log_atlan.sevilla",
+            "cargo.press_sl_val",
+            "791",
+            "37631",
+            "671",
+            "0.012",
+            "997",
+            "0",
+            "1",
+            "1",
+            "0",
+            "39603",
+            "800",
+            "8423164",
+            "vehicle.scania.s_2016",
+            "668",
+            "spec_oversize",
+            "lux_lieg1",
+            "",
+            "1",
+            "30639.299",
+            "53",
+        ];
+
+        let entry = DeliveryLogEntry::from_params(&params).unwrap();
+
+        assert_eq!(entry.xp, 791);
+        assert_eq!(entry.distance_km, 671);
+        assert_eq!(entry.cargo_damage, 0.012);
+        assert_eq!(entry.special_route, "lux_lieg1");
+        assert_eq!(entry.cargo_mass_kg, Some(30639.299));
+        assert_eq!(company_city(&entry.destination_company), "sevilla");
+    }
+
+    #[test]
+    fn parses_career_stats_from_economy_player_garage_and_ferry_blocks() {
+        let bsii = BsiiFile {
+            header: b"BSII",
+            version: 3,
+            prototypes: HashMap::from([
+                prototype(
+                    1,
+                    "economy",
+                    &[
+                        "unlocked_recruitments",
+                        "trucks_bought_online",
+                        "gas_station_visit_count",
+                    ],
+                ),
+                prototype(
+                    2,
+                    "player",
+                    &["hq_city", "sleeping_count", "discovary_distance"],
+                ),
+                prototype(3, "garage", &["status", "productivity"]),
+                prototype(4, "ferry_log", &["entries"]),
+                prototype(5, "ferry_log_entry", &["ferry", "connection", "use_count"]),
+            ]),
+            data_blocks: vec![
+                DataBlock {
+                    prototype_id: 1,
+                    id: Id::Nameless(1),
+                    data: vec![
+                        DataValue::EncodedStringArray(vec![
+                            "geneve".to_string(),
+                            "lyon".to_string(),
+                        ]),
+                        DataValue::UInt32(44),
+                        DataValue::UInt32(38),
+                    ],
+                },
+                DataBlock {
+                    prototype_id: 2,
+                    id: Id::Nameless(2),
+                    data: vec![
+                        DataValue::EncodedString("toulouse".to_string()),
+                        DataValue::UInt32(1),
+                        DataValue::Float(44707.58),
+                    ],
+                },
+                garage_block("dijon", 6, 1.0),
+                garage_block("helsinki", 3, 0.5),
+                garage_block("grimsby", 0, 0.0),
+                DataBlock {
+                    prototype_id: 4,
+                    id: Id::Nameless(4),
+                    data: vec![DataValue::IdArray(vec![Id::Nameless(5)])],
+                },
+                DataBlock {
+                    prototype_id: 5,
+                    id: Id::Nameless(5),
+                    data: vec![
+                        DataValue::EncodedString("tunnel_c".to_string()),
+                        DataValue::EncodedString("tunnel_d".to_string()),
+                        DataValue::UInt32(2),
+                    ],
+                },
+            ],
+        };
+
+        let career = CareerStats::from_bsii(&bsii);
+
+        assert_eq!(career.hq_city.as_deref(), Some("toulouse"));
+        assert_eq!(career.sleeping_count, Some(1));
+        assert!((career.discovered_road_km.unwrap() - 44707.58).abs() < 0.01);
+        assert_eq!(
+            career.unlocked_recruitments,
+            Some(vec!["geneve".to_string(), "lyon".to_string()])
+        );
+        assert_eq!(career.trucks_bought_online, Some(44));
+        assert_eq!(career.gas_station_visits, Some(38));
+        let garages = career.garages.unwrap();
+        assert_eq!(garages.len(), 3);
+        assert_eq!(garages[0].city, "dijon");
+        assert_eq!(garages[0].size, GarageSize::Tiny);
+        assert_eq!(garages[1].size, GarageSize::Large);
+        assert!(!garages[2].size.is_owned());
+        let crossings = career.ferry_crossings.unwrap();
+        assert_eq!(crossings.len(), 1);
+        assert!(crossings[0].is_train());
+        assert_eq!(crossings[0].use_count, 2);
+    }
+
+    #[test]
+    fn career_stats_are_empty_when_blocks_are_missing() {
+        let bsii = synthetic_bsii(vec![Id::Nameless(10)]);
+        assert_eq!(CareerStats::from_bsii(&bsii), CareerStats::default());
+    }
+
+    fn prototype(
+        id: u32,
+        name: &'static str,
+        fields: &[&'static str],
+    ) -> (u32, Prototype<'static>) {
+        (
+            id,
+            Prototype {
+                id,
+                name,
+                value_prototypes: fields
+                    .iter()
+                    .map(|field| ValuePrototype {
+                        type_id: 0,
+                        name: field,
+                        enum_values: None,
+                    })
+                    .collect(),
+            },
+        )
+    }
+
+    fn garage_block(city: &str, status: u32, productivity: f32) -> DataBlock<'static> {
+        DataBlock {
+            prototype_id: 3,
+            id: Id::Named(vec!["garage".to_string(), city.to_string()]),
+            data: vec![DataValue::UInt32(status), DataValue::Float(productivity)],
+        }
     }
 
     #[test]
@@ -495,6 +892,7 @@ mod tests {
             revenue,
             truck: truck.to_string(),
             job_type: job_type.to_string(),
+            ..DeliveryLogEntry::default()
         }
     }
 

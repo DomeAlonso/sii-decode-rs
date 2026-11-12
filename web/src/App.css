@@ -160,6 +160,15 @@ textarea {
   color: #6b7280;
 }
 
+.warning {
+  margin: 0;
+  border: 1px solid #f59e0b;
+  border-radius: 8px;
+  background: #fffbeb;
+  padding: 10px 14px;
+  color: #92400e;
+}
+
 .achievement-group {
   border: 1px solid #d8dee8;
   border-radius: 8px;

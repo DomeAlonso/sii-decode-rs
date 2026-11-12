@@ -1,18 +1,20 @@
+mod achievement_definitions;
 mod achievements;
 mod analysis;
 pub mod generated;
 mod save;
 
+pub use achievement_definitions::{ACHIEVEMENTS, ACHIEVEMENT_GROUPS};
 pub use achievements::{
     achievement_categories_for_cargo, evaluate_achievements, is_owned_truck_job_type, Achievement,
-    AchievementDefinition, AchievementEvaluation, AchievementEvidence, AchievementProgress,
-    AchievementRegistry, AchievementStatus, AchievementTracking, BASE_GAME_ACHIEVEMENTS,
+    AchievementDefinition, AchievementEvaluation, AchievementEvidence, AchievementGroup,
+    AchievementProgress, AchievementRegistry, AchievementStatus, AchievementTracking,
     EXPERIENCE_BEATS_ALL_CATEGORIES,
 };
 pub use analysis::{analyze_save_to_json, AnalyzeError};
 pub use save::{
-    DeliveryAnalytics, DeliveryLog, DeliveryLogEntry, SaveGame, SaveGameError, CARGO_PREFIX,
-    COMPANY_PREFIX, VEHICLE_PREFIX,
+    company_city, CareerStats, DeliveryAnalytics, DeliveryLog, DeliveryLogEntry, FerryCrossing,
+    Garage, GarageSize, SaveGame, SaveGameError, CARGO_PREFIX, COMPANY_PREFIX, VEHICLE_PREFIX,
 };
 
 #[derive(Debug, Clone, Eq, PartialEq)]

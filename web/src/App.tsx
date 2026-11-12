@@ -391,6 +391,13 @@ function AchievementGroups({ analysis }: { analysis: TrackerAnalysis }) {
   const groups = groupAchievements(analysis);
   return (
     <section className="achievement-groups" aria-label="Achievements">
+      {analysis.achievement_groups ? null : (
+        <p className="warning" data-testid="tracker-stale-decoder">
+          This analysis has no achievement sets. The decoder (WebAssembly)
+          package is older than this page: rebuild it with{" "}
+          <code>wasm-pack build --all-features</code> and redeploy.
+        </p>
+      )}
       {groups.map((group, index) => (
         <AchievementGroupSection
           key={group.id}
@@ -594,18 +601,12 @@ const EVIDENCE_ITEM_LABELS: Record<string, string> = {
   scania_trucks_lover: "deliveries",
   turkish_delight: "deliveries",
   head_hunter: "agencies",
-  successfully_docked: "ports",
   choo_choo: "crossings",
   sardine: "crossings",
   property_magnate: "garages",
-  working_with_the_elite: "garages",
-  performance_optimizer: "garages",
-  driver_exceptionnel: "routes",
   go_nuclear: "cities",
-  check_in_check_out: "cities",
   whatever_floats_your_boat: "cities",
   captain: "cities",
-  sailor: "cities",
 };
 
 function evidenceListItemLabel(achievementId: string) {

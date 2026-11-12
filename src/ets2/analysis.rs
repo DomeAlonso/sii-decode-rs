@@ -1,6 +1,6 @@
 use crate::bsii_file::BsiiFile;
 use crate::ets2::{
-    evaluate_achievements, Achievement, AchievementEvidence, AchievementRegistry,
+    evaluate_achievements, Achievement, AchievementEvidence, AchievementGroup, AchievementRegistry,
     AchievementStatus, DeliveryAnalytics, SaveGame,
 };
 use crate::file_type::decode_until_bsii;
@@ -39,6 +39,8 @@ fn render_analysis_json(save: &SaveGame) -> String {
     let mut output = String::from("{\n");
     output.push_str("  \"analytics\": ");
     output.push_str(&render_analytics(&analytics));
+    output.push_str(",\n  \"achievement_groups\": ");
+    output.push_str(&render_achievement_groups(&registry.groups));
     output.push_str(",\n  \"achievements\": ");
     output.push_str(&render_achievement_registry(&registry));
     output.push_str("\n}\n");
@@ -93,10 +95,30 @@ fn render_achievement_registry(registry: &AchievementRegistry) -> String {
     format!("[\n{achievements}\n  ]")
 }
 
+fn render_achievement_groups(groups: &[AchievementGroup]) -> String {
+    let groups = groups
+        .iter()
+        .map(|group| {
+            format!(
+                "    {{ \"id\": \"{}\", \"name\": \"{}\", \"steam_group_id\": {}, \"steam_dlc_app_id\": {} }}",
+                json_escape(group.id),
+                json_escape(group.name),
+                group.steam_group_id,
+                group
+                    .steam_dlc_app_id
+                    .map_or_else(|| "null".to_string(), |app_id| app_id.to_string())
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",\n");
+    format!("[\n{groups}\n  ]")
+}
+
 fn render_achievement(achievement: &Achievement) -> String {
     format!(
-        "    {{\n      \"id\": \"{}\",\n      \"steam_api_name\": \"{}\",\n      \"display_name\": \"{}\",\n      \"description\": \"{}\",\n      \"status\": \"{}\",\n      \"progress\": {{ \"current\": {}, \"target\": {}, \"unit\": \"{}\" }},\n      \"evidence\": {}\n    }}",
+        "    {{\n      \"id\": \"{}\",\n      \"group\": \"{}\",\n      \"steam_api_name\": \"{}\",\n      \"display_name\": \"{}\",\n      \"description\": \"{}\",\n      \"status\": \"{}\",\n      \"progress\": {{ \"current\": {}, \"target\": {}, \"unit\": \"{}\" }},\n      \"evidence\": {}\n    }}",
         json_escape(achievement.id),
+        json_escape(achievement.group),
         json_escape(achievement.steam_api_name),
         json_escape(achievement.display_name),
         json_escape(achievement.description),
@@ -198,17 +220,16 @@ mod tests {
 
     #[test]
     fn renders_analysis_json() {
-        let save = SaveGame {
-            delivery_log: DeliveryLog::from_entries(vec![DeliveryLogEntry {
-                source_company: "company.volatile.lkwlog.amsterdam".to_string(),
-                destination_company: "company.volatile.stokes.amsterdam".to_string(),
-                cargo: "cargo.gravel".to_string(),
-                distance_km: 362,
-                revenue: 16930.0,
-                truck: "vehicle.mercedes.actros".to_string(),
-                job_type: "cargo".to_string(),
-            }]),
-        };
+        let save = SaveGame::from_delivery_log(DeliveryLog::from_entries(vec![DeliveryLogEntry {
+            source_company: "company.volatile.lkwlog.amsterdam".to_string(),
+            destination_company: "company.volatile.stokes.amsterdam".to_string(),
+            cargo: "cargo.gravel".to_string(),
+            distance_km: 362,
+            revenue: 16930.0,
+            truck: "vehicle.mercedes.actros".to_string(),
+            job_type: "cargo".to_string(),
+            ..DeliveryLogEntry::default()
+        }]));
 
         let json = render_analysis_json(&save);
 
@@ -221,5 +242,11 @@ mod tests {
         assert!(json.contains("\"id\": \"property_magnate\""));
         assert!(json.contains("\"status\": \"not_tracked\""));
         assert!(json.contains("€130,000"));
+        assert!(json.contains("\"group\": \"base_game\""));
+        assert!(json.contains(
+            "{ \"id\": \"base_game\", \"name\": \"Base Game\", \"steam_group_id\": 0, \"steam_dlc_app_id\": null }"
+        ));
+        assert!(json.contains("\"steam_dlc_app_id\": 304212"));
+        assert!(json.contains("\"id\": \"turkish_delight\""));
     }
 }

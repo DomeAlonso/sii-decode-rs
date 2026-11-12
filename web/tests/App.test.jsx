@@ -36,7 +36,36 @@ vi.mock("../src/decode.worker?worker", () => {
             const bytes = new Uint8Array(data.buffer);
             const text = new TextDecoder().decode(bytes);
 
-            if (text.startsWith("BSII")) {
+            if (text === "BSII-old") {
+              this.dispatchMessage({
+                data: {
+                  type: "analysis-success",
+                  result: JSON.stringify({
+                    analytics: {
+                      delivery_count: 1,
+                      total_distance_km: 100,
+                      total_revenue: 1000,
+                      unique_cargos: ["gravel"],
+                      unique_companies: ["lkwlog"],
+                      job_type_breakdown: { cargo: 1 },
+                      brand_distance_km: {},
+                      cargo_category_coverage: {},
+                    },
+                    achievements: [
+                      {
+                        id: "long_hauler",
+                        display_name: "Long Hauler",
+                        description:
+                          "Complete a delivery that was greater than 2,000 km",
+                        status: "in_progress",
+                        progress: { current: 100, target: 2000, unit: "km" },
+                        evidence: [],
+                      },
+                    ],
+                  }),
+                },
+              });
+            } else if (text.startsWith("BSII")) {
               this.dispatchMessage({
                 data: {
                   type: "analysis-success",
@@ -291,6 +320,7 @@ test("Tracker groups achievements by set and expands them on click", async () =>
     expect(screen.getByTestId("tracker-results")).toBeInTheDocument();
   });
 
+  expect(screen.queryByTestId("tracker-stale-decoder")).not.toBeInTheDocument();
   const groups = screen.getAllByTestId("achievement-group");
   // Sets without achievements in the analysis are not rendered.
   expect(groups).toHaveLength(2);
@@ -319,6 +349,25 @@ test("Tracker groups achievements by set and expands them on click", async () =>
   await userEvent.click(baseGame);
   expect(baseGame).toHaveAttribute("aria-expanded", "false");
   expect(screen.queryByText("Long Hauler")).not.toBeInTheDocument();
+});
+
+test("Tracker warns when the decoder predates achievement sets", async () => {
+  window.location.hash = "#tracker";
+  render(<App />);
+
+  await userEvent.upload(
+    screen.getByTestId("tracker-file-upload"),
+    new File(["BSII-old"], "save.sii"),
+  );
+  await waitFor(() => {
+    expect(screen.getByTestId("tracker-results")).toBeInTheDocument();
+  });
+
+  expect(screen.getByTestId("tracker-stale-decoder")).toHaveTextContent(
+    /older than this page/,
+  );
+  // Everything falls back into one set.
+  expect(screen.getAllByTestId("achievement-group")).toHaveLength(1);
 });
 
 test("Tracker can display unsupported-format error", async () => {
