@@ -91,6 +91,22 @@ vi.mock("../src/decode.worker?worker", () => {
                           },
                         ],
                       },
+                      {
+                        id: "property_magnate",
+                        steam_api_name: "garage_in_every_city",
+                        display_name: "Property Magnate",
+                        description: "Own at least 30 garages",
+                        status: "not_tracked",
+                        progress: { current: 0, target: 0, unit: "" },
+                        evidence: [
+                          {
+                            label: "Not tracked yet",
+                            value:
+                              "Needs owned garage data from the save, which the tracker does not read yet",
+                            complete: false,
+                          },
+                        ],
+                      },
                     ],
                   }),
                 },
@@ -206,6 +222,16 @@ test("Tracker can render analysis", async () => {
   const deliveries = screen.getByText("Deliveries").closest(".metric");
   expect(deliveries).not.toBeNull();
   expect(within(deliveries).getByText("2")).toBeInTheDocument();
+  const achievementsMetric = screen
+    .getByText("Achievements")
+    .closest(".metric");
+  expect(within(achievementsMetric).getByText("1 / 3")).toBeInTheDocument();
+  const untracked = screen.getByText("Property Magnate").closest("article");
+  expect(within(untracked).getByText("Not tracked")).toBeInTheDocument();
+  expect(within(untracked).queryByRole("progressbar")).not.toBeInTheDocument();
+  expect(
+    within(untracked).getByText(/Needs owned garage data/),
+  ).toBeInTheDocument();
 });
 
 test("Tracker can display unsupported-format error", async () => {

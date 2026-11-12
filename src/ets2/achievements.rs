@@ -33,6 +33,7 @@ pub struct AchievementRegistry {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Achievement {
     pub id: &'static str,
+    pub steam_api_name: &'static str,
     pub display_name: &'static str,
     pub description: &'static str,
     pub status: AchievementStatus,
@@ -44,6 +45,8 @@ pub struct Achievement {
 pub enum AchievementStatus {
     Complete,
     InProgress,
+    /// The save data this achievement depends on is not read by the tracker yet.
+    NotTracked,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -61,20 +64,292 @@ pub struct AchievementEvidence {
     pub complete: bool,
 }
 
+/// Static description of one Steam achievement and how the tracker evaluates it.
+#[derive(Debug, Clone, Copy)]
+pub struct AchievementDefinition {
+    pub id: &'static str,
+    /// The achievement's `api_name` on Steam (app 227300).
+    pub steam_api_name: &'static str,
+    pub display_name: &'static str,
+    pub description: &'static str,
+    pub tracking: AchievementTracking,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum AchievementTracking {
+    /// Evaluated from the save game's delivery log.
+    DeliveryLog(fn(&SaveGame) -> AchievementEvaluation),
+    /// Listed for completeness; `requires` names the save data still needed.
+    NotTracked { requires: &'static str },
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct AchievementEvaluation {
+    pub status: AchievementStatus,
+    pub progress: AchievementProgress,
+    pub evidence: Vec<AchievementEvidence>,
+}
+
+const fn delivery_log(evaluate: fn(&SaveGame) -> AchievementEvaluation) -> AchievementTracking {
+    AchievementTracking::DeliveryLog(evaluate)
+}
+
+const fn not_tracked(requires: &'static str) -> AchievementTracking {
+    AchievementTracking::NotTracked { requires }
+}
+
+/// All 29 base-game Euro Truck Simulator 2 achievements, in Steam order.
+/// Names and descriptions follow the Steam achievement page; DLC and
+/// Driving Academy achievement groups are not included.
+pub const BASE_GAME_ACHIEVEMENTS: [AchievementDefinition; 29] = [
+    AchievementDefinition {
+        id: "i_am_a_gps",
+        steam_api_name: "map_discover_60",
+        display_name: "I Am a GPS",
+        description: "Discover at least 20,000 kilometers of roads",
+        tracking: not_tracked("discovered road data"),
+    },
+    AchievementDefinition {
+        id: "pathfinder",
+        steam_api_name: "map_discover_100",
+        display_name: "Pathfinder",
+        description: "Discover at least 40,000 kilometers of roads",
+        tracking: not_tracked("discovered road data"),
+    },
+    AchievementDefinition {
+        id: "choo_choo",
+        steam_api_name: "use_train",
+        display_name: "Choo-Choo",
+        description: "Use the train to cross the channel",
+        tracking: not_tracked("ferry and train usage"),
+    },
+    AchievementDefinition {
+        id: "sardine",
+        steam_api_name: "use_boat",
+        display_name: "Sardine",
+        description: "Utilize a boat",
+        tracking: not_tracked("ferry and train usage"),
+    },
+    AchievementDefinition {
+        id: "head_hunter",
+        steam_api_name: "discover_all_agencies",
+        display_name: "Head Hunter",
+        description: "Discover at least 40 recruitment agencies",
+        tracking: not_tracked("discovered recruitment agencies"),
+    },
+    AchievementDefinition {
+        id: "successfully_docked",
+        steam_api_name: "use_all_ports",
+        display_name: "Successfully Docked",
+        description: "Use at least 5 ports in the game (counts sea, river and train ports)",
+        tracking: not_tracked("ferry and train usage"),
+    },
+    AchievementDefinition {
+        id: "from_the_comfort_of_your_home",
+        steam_api_name: "buy_truck_online",
+        display_name: "From the Comfort of Your Home",
+        description: "Buy a truck online",
+        tracking: not_tracked("truck purchase history"),
+    },
+    AchievementDefinition {
+        id: "my_precious",
+        steam_api_name: "metallic_multi_color_paint",
+        display_name: "My Precious",
+        description: "Design and apply to your truck a custom multi-color metallic paint",
+        tracking: not_tracked("truck paint job data"),
+    },
+    AchievementDefinition {
+        id: "test_drive_limited",
+        steam_api_name: "999_km_with_each_brand",
+        display_name: "Test Drive Limited (5 Truck Brands)",
+        description:
+            "Drive 999 km during jobs with each of at least 5 truck brands, only your owned trucks count",
+        tracking: delivery_log(test_drive_limited),
+    },
+    AchievementDefinition {
+        id: "just_in_time",
+        steam_api_name: "job_urgent",
+        display_name: "Just in Time!",
+        description: "Take an urgent delivery for a minimum of 550 km and complete it with less than 30 minutes remaining",
+        tracking: not_tracked("job urgency and delivery deadline data"),
+    },
+    AchievementDefinition {
+        id: "long_hauler",
+        steam_api_name: "job_2000_km",
+        display_name: "Long Hauler",
+        description: "Complete a delivery that was greater than 2,000 km",
+        tracking: delivery_log(long_hauler),
+    },
+    AchievementDefinition {
+        id: "reliable_contractor",
+        steam_api_name: "job_15_companies",
+        display_name: "Reliable Contractor",
+        description: "Perform jobs for at least 15 different companies in the game",
+        tracking: delivery_log(reliable_contractor),
+    },
+    AchievementDefinition {
+        id: "profit_hunter",
+        steam_api_name: "job_no_ferry",
+        display_name: "Profit Hunter",
+        description: "Complete a job worth over €130,000 and minimum 2,200 km",
+        tracking: delivery_log(profit_hunter),
+    },
+    AchievementDefinition {
+        id: "experience_beats_all",
+        steam_api_name: "job_all_trailer_types",
+        display_name: "Experience Beats All!",
+        description: "Complete deliveries with following trailer types: Machinery, ADR cargo, Container, Refrigerated, Liquid cargo, Fragile cargo, Construction, Bulk cargo",
+        tracking: delivery_log(experience_beats_all),
+    },
+    AchievementDefinition {
+        id: "job_is_only_worth_it_if_its_done_well",
+        steam_api_name: "perfect_delivery",
+        display_name: "Job Is Only Worth It If It's Done Well!",
+        description: "Complete a perfect delivery (no damage, no fines, in-time) for a job that is at least 1,000 km",
+        tracking: not_tracked("per-job damage, fine and lateness data"),
+    },
+    AchievementDefinition {
+        id: "careerist",
+        steam_api_name: "5_jobs_in_a_row",
+        display_name: "Careerist",
+        description: "Complete 5 jobs in a row - in-time, without taking any damage to cargo and without using autoparking",
+        tracking: not_tracked("per-job damage, lateness and autoparking data"),
+    },
+    AchievementDefinition {
+        id: "friends_are_always_here_to_help_you",
+        steam_api_name: "use_automatic_parking",
+        display_name: "Friends Are Always Here to Help You",
+        description: "Use automatic parking",
+        tracking: not_tracked("autoparking usage"),
+    },
+    AchievementDefinition {
+        id: "all_is_possible",
+        steam_api_name: "jobs_30_cargo",
+        display_name: "All Is Possible",
+        description: "Take and complete jobs with at least 30 different cargo",
+        tracking: delivery_log(all_is_possible),
+    },
+    AchievementDefinition {
+        id: "minimaxer",
+        steam_api_name: "jobs_20k_xp",
+        display_name: "Minimaxer",
+        description: "Gain 20,000 XP for several consecutive jobs with the total distance below 10,000 km",
+        tracking: not_tracked("per-job XP data"),
+    },
+    AchievementDefinition {
+        id: "honey_im_home",
+        steam_api_name: "quick_travel_to_hq",
+        display_name: "Honey, I'm Home",
+        description: "Use quick travel to return to your headquarters",
+        tracking: not_tracked("quick travel usage"),
+    },
+    AchievementDefinition {
+        id: "national_company",
+        steam_api_name: "garages_in_hq_country",
+        display_name: "National Company",
+        description: "Own at least one largest garage in your headquarter country",
+        tracking: not_tracked("owned garage and headquarters data"),
+    },
+    AchievementDefinition {
+        id: "property_magnate",
+        steam_api_name: "garage_in_every_city",
+        display_name: "Property Magnate",
+        description: "Own at least 30 garages",
+        tracking: not_tracked("owned garage data"),
+    },
+    AchievementDefinition {
+        id: "working_with_the_elite",
+        steam_api_name: "large_garage_productivity",
+        display_name: "Working with the Elite",
+        description: "Achieve 100% of productivity for at least 5 large garages at the same time",
+        tracking: not_tracked("garage productivity data"),
+    },
+    AchievementDefinition {
+        id: "swimming_in_success",
+        steam_api_name: "daily_profit",
+        display_name: "Swimming in Success",
+        description: "Reach an average daily profit of €450,000",
+        tracking: not_tracked("company profit history"),
+    },
+    AchievementDefinition {
+        id: "performance_optimizer",
+        steam_api_name: "productivity_all_garages",
+        display_name: "Performance Optimizer",
+        description: "Achieve at least 75% of the average garage productivity for 10 large garages in your company",
+        tracking: not_tracked("garage productivity data"),
+    },
+    AchievementDefinition {
+        id: "aspects_of_professionalism",
+        steam_api_name: "maxed_male_female",
+        display_name: "Aspects of Professionalism",
+        description: "Have at least 10 female and 10 male employees of maximum level in your company",
+        tracking: not_tracked("hired driver data"),
+    },
+    AchievementDefinition {
+        id: "zzzzz",
+        steam_api_name: "use_rest_stop",
+        display_name: "Zzzzz",
+        description: "Use a rest stop",
+        tracking: not_tracked("rest stop usage"),
+    },
+    AchievementDefinition {
+        id: "diesel_no_petrol",
+        steam_api_name: "use_gas_station",
+        display_name: "Diesel, No Petrol!",
+        description: "Use a filling station",
+        tracking: not_tracked("filling station usage"),
+    },
+    AchievementDefinition {
+        id: "parking_challenge",
+        steam_api_name: "unload_difficulty",
+        display_name: "Parking Challenge",
+        description: "Complete 20 deliveries choosing the trailer delivery option which requires reversing",
+        tracking: not_tracked("trailer delivery (parking) option per job"),
+    },
+];
+
 pub fn evaluate_achievements(save: &SaveGame) -> AchievementRegistry {
     AchievementRegistry {
-        achievements: vec![
-            experience_beats_all(save),
-            test_drive_limited(save),
-            all_is_possible(save),
-            reliable_contractor(save),
-            long_hauler(save),
-            profit_hunter(save),
-        ],
+        achievements: BASE_GAME_ACHIEVEMENTS
+            .iter()
+            .map(|definition| evaluate_definition(definition, save))
+            .collect(),
     }
 }
 
-fn experience_beats_all(save: &SaveGame) -> Achievement {
+fn evaluate_definition(definition: &AchievementDefinition, save: &SaveGame) -> Achievement {
+    let evaluation = match definition.tracking {
+        AchievementTracking::DeliveryLog(evaluate) => evaluate(save),
+        AchievementTracking::NotTracked { requires } => AchievementEvaluation {
+            status: AchievementStatus::NotTracked,
+            progress: AchievementProgress {
+                current: 0,
+                target: 0,
+                unit: "",
+            },
+            evidence: vec![AchievementEvidence {
+                label: "Not tracked yet".to_string(),
+                value: format!(
+                    "Needs {requires} from the save, which the tracker does not read yet"
+                ),
+                items: Vec::new(),
+                complete: false,
+            }],
+        },
+    };
+
+    Achievement {
+        id: definition.id,
+        steam_api_name: definition.steam_api_name,
+        display_name: definition.display_name,
+        description: definition.description,
+        status: evaluation.status,
+        progress: evaluation.progress,
+        evidence: evaluation.evidence,
+    }
+}
+
+fn experience_beats_all(save: &SaveGame) -> AchievementEvaluation {
     let mut evidence_by_category = EXPERIENCE_BEATS_ALL_CATEGORIES
         .into_iter()
         .map(|category| (category, BTreeSet::new()))
@@ -103,10 +378,7 @@ fn experience_beats_all(save: &SaveGame) -> Achievement {
     let current = evidence.iter().filter(|item| item.complete).count() as u32;
     let target = EXPERIENCE_BEATS_ALL_CATEGORIES.len() as u32;
 
-    Achievement {
-        id: "experience_beats_all",
-        display_name: "Experience Beats All",
-        description: "Complete deliveries with all trailer types.",
+    AchievementEvaluation {
         status: status_from_progress(current, target),
         progress: AchievementProgress {
             current,
@@ -117,7 +389,7 @@ fn experience_beats_all(save: &SaveGame) -> Achievement {
     }
 }
 
-fn test_drive_limited(save: &SaveGame) -> Achievement {
+fn test_drive_limited(save: &SaveGame) -> AchievementEvaluation {
     let mut distance_by_brand = BTreeMap::<String, u64>::new();
     for entry in save
         .delivery_log
@@ -141,11 +413,7 @@ fn test_drive_limited(save: &SaveGame) -> Achievement {
         .collect::<Vec<_>>();
     let current = evidence.iter().filter(|item| item.complete).count() as u32;
 
-    Achievement {
-        id: "test_drive_limited",
-        display_name: "Test Drive Limited (5 Truck Brands)",
-        description:
-            "Drive at least 999 km during jobs with each of at least 5 owned-truck brands.",
+    AchievementEvaluation {
         status: status_from_progress(current, TEST_DRIVE_LIMITED_TARGET_BRANDS),
         progress: AchievementProgress {
             current,
@@ -156,7 +424,7 @@ fn test_drive_limited(save: &SaveGame) -> Achievement {
     }
 }
 
-fn all_is_possible(save: &SaveGame) -> Achievement {
+fn all_is_possible(save: &SaveGame) -> AchievementEvaluation {
     let cargos = save
         .delivery_log
         .unique_cargos()
@@ -165,10 +433,7 @@ fn all_is_possible(save: &SaveGame) -> Achievement {
         .collect::<BTreeSet<_>>();
     let current = cargos.len() as u32;
 
-    Achievement {
-        id: "all_is_possible",
-        display_name: "All Is Possible",
-        description: "Take and complete jobs with at least 30 different cargoes.",
+    AchievementEvaluation {
         status: status_from_progress(current, ALL_IS_POSSIBLE_TARGET_CARGOS),
         progress: AchievementProgress {
             current,
@@ -184,7 +449,7 @@ fn all_is_possible(save: &SaveGame) -> Achievement {
     }
 }
 
-fn reliable_contractor(save: &SaveGame) -> Achievement {
+fn reliable_contractor(save: &SaveGame) -> AchievementEvaluation {
     let companies = save
         .delivery_log
         .entries
@@ -199,10 +464,7 @@ fn reliable_contractor(save: &SaveGame) -> Achievement {
         .collect::<BTreeSet<_>>();
     let current = companies.len() as u32;
 
-    Achievement {
-        id: "reliable_contractor",
-        display_name: "Reliable Contractor",
-        description: "Perform jobs for at least 15 different companies in the game.",
+    AchievementEvaluation {
         status: status_from_progress(current, RELIABLE_CONTRACTOR_TARGET_COMPANIES),
         progress: AchievementProgress {
             current,
@@ -218,7 +480,7 @@ fn reliable_contractor(save: &SaveGame) -> Achievement {
     }
 }
 
-fn long_hauler(save: &SaveGame) -> Achievement {
+fn long_hauler(save: &SaveGame) -> AchievementEvaluation {
     let longest = save
         .delivery_log
         .entries
@@ -227,10 +489,7 @@ fn long_hauler(save: &SaveGame) -> Achievement {
     let current = longest.map_or(0, |entry| entry.distance_km);
     let complete = current > LONG_HAULER_TARGET_DISTANCE_KM;
 
-    Achievement {
-        id: "long_hauler",
-        display_name: "Long Hauler",
-        description: "Complete a delivery that was greater than 2,000 km.",
+    AchievementEvaluation {
         status: if complete {
             AchievementStatus::Complete
         } else {
@@ -252,7 +511,7 @@ fn long_hauler(save: &SaveGame) -> Achievement {
     }
 }
 
-fn profit_hunter(save: &SaveGame) -> Achievement {
+fn profit_hunter(save: &SaveGame) -> AchievementEvaluation {
     let qualifying = save
         .delivery_log
         .entries
@@ -268,10 +527,7 @@ fn profit_hunter(save: &SaveGame) -> Achievement {
     let current = evidence_entry.map_or(0, profit_hunter_criteria_met);
     let complete = qualifying.is_some();
 
-    Achievement {
-        id: "profit_hunter",
-        display_name: "Profit Hunter",
-        description: "Complete one job worth over 130,000 EUR and at least 2,200 km.",
+    AchievementEvaluation {
         status: if complete {
             AchievementStatus::Complete
         } else {
@@ -428,9 +684,8 @@ mod tests {
             entry("cargo.gravel", 200, "vehicle.man.tgx", "quick"),
         ]);
 
-        let achievement = evaluate_achievements(&save).achievements.remove(0);
+        let achievement = achievement_by_id(&save, "experience_beats_all");
 
-        assert_eq!(achievement.id, "experience_beats_all");
         assert_eq!(achievement.status, AchievementStatus::Complete);
         assert_eq!(achievement.progress.current, 8);
         assert!(achievement
@@ -458,9 +713,8 @@ mod tests {
             entry("cargo.gravel", 5000, "vehicle.iveco.hiway", "unknown"),
         ]);
 
-        let achievement = evaluate_achievements(&save).achievements.remove(1);
+        let achievement = achievement_by_id(&save, "test_drive_limited");
 
-        assert_eq!(achievement.id, "test_drive_limited");
         assert_eq!(
             achievement.display_name,
             "Test Drive Limited (5 Truck Brands)"
@@ -581,6 +835,62 @@ mod tests {
         assert_eq!(achievement.status, AchievementStatus::InProgress);
         assert_eq!(achievement.progress.current, 1);
         assert_eq!(achievement.evidence[0].label, "Best revenue job");
+    }
+
+    #[test]
+    fn registry_lists_all_29_base_game_achievements_in_steam_order() {
+        let registry = evaluate_achievements(&save_with_entries(Vec::new()));
+
+        assert_eq!(registry.achievements.len(), 29);
+        assert_eq!(registry.achievements[0].steam_api_name, "map_discover_60");
+        assert_eq!(
+            registry.achievements[28].steam_api_name,
+            "unload_difficulty"
+        );
+
+        let ids = registry
+            .achievements
+            .iter()
+            .map(|achievement| achievement.id)
+            .collect::<BTreeSet<_>>();
+        let api_names = registry
+            .achievements
+            .iter()
+            .map(|achievement| achievement.steam_api_name)
+            .collect::<BTreeSet<_>>();
+        assert_eq!(ids.len(), 29);
+        assert_eq!(api_names.len(), 29);
+    }
+
+    #[test]
+    fn delivery_log_achievements_are_tracked_and_others_are_marked_not_tracked() {
+        let registry = evaluate_achievements(&save_with_entries(Vec::new()));
+        let tracked = registry
+            .achievements
+            .iter()
+            .filter(|achievement| achievement.status != AchievementStatus::NotTracked)
+            .map(|achievement| achievement.id)
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(
+            tracked,
+            BTreeSet::from([
+                "all_is_possible",
+                "experience_beats_all",
+                "long_hauler",
+                "profit_hunter",
+                "reliable_contractor",
+                "test_drive_limited",
+            ])
+        );
+
+        let untracked = achievement_by_id(&save_with_entries(Vec::new()), "property_magnate");
+        assert_eq!(untracked.display_name, "Property Magnate");
+        assert_eq!(untracked.description, "Own at least 30 garages");
+        assert_eq!(untracked.status, AchievementStatus::NotTracked);
+        assert_eq!(untracked.evidence.len(), 1);
+        assert!(!untracked.evidence[0].complete);
+        assert!(untracked.evidence[0].value.contains("owned garage data"));
     }
 
     #[test]

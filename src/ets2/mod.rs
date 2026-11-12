@@ -5,7 +5,8 @@ mod save;
 
 pub use achievements::{
     achievement_categories_for_cargo, evaluate_achievements, is_owned_truck_job_type, Achievement,
-    AchievementEvidence, AchievementProgress, AchievementRegistry, AchievementStatus,
+    AchievementDefinition, AchievementEvaluation, AchievementEvidence, AchievementProgress,
+    AchievementRegistry, AchievementStatus, AchievementTracking, BASE_GAME_ACHIEVEMENTS,
     EXPERIENCE_BEATS_ALL_CATEGORIES,
 };
 pub use analysis::{analyze_save_to_json, AnalyzeError};

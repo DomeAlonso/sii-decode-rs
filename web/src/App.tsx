@@ -19,9 +19,10 @@ type TrackerAnalysis = {
   };
   achievements: Array<{
     id: string;
+    steam_api_name?: string;
     display_name: string;
     description: string;
-    status: "complete" | "in_progress";
+    status: "complete" | "in_progress" | "not_tracked";
     progress: {
       current: number;
       target: number;
@@ -35,6 +36,8 @@ type TrackerAnalysis = {
     }>;
   }>;
 };
+
+type AchievementStatus = TrackerAnalysis["achievements"][number]["status"];
 
 type AchievementEvidence =
   TrackerAnalysis["achievements"][number]["evidence"][number];
@@ -324,6 +327,14 @@ function AnalyticsSummary({ analysis }: { analysis: TrackerAnalysis }) {
         label="Job Types"
         value={Object.keys(analytics.job_type_breakdown).length}
       />
+      <Metric
+        label="Achievements"
+        value={`${
+          analysis.achievements.filter(
+            (achievement) => achievement.status === "complete",
+          ).length
+        } / ${analysis.achievements.length}`}
+      />
     </section>
   );
 }
@@ -345,25 +356,32 @@ function AchievementList({
   return (
     <section className="achievements" aria-label="Achievements">
       {achievements.map((achievement) => (
-        <article className="achievement" key={achievement.id}>
+        <article
+          className={`achievement ${achievement.status}`}
+          key={achievement.id}
+        >
           <div className="achievement-heading">
             <div>
               <h3>{achievement.display_name}</h3>
               <p>{achievement.description}</p>
             </div>
             <span className={`status ${achievement.status}`}>
-              {achievement.status === "complete" ? "Complete" : "In progress"}
+              {statusLabel(achievement.status)}
             </span>
           </div>
-          <progress
-            value={achievement.progress.current}
-            max={achievement.progress.target}
-            aria-label={`${achievement.display_name} progress`}
-          />
-          <div className="progress-text">
-            {achievement.progress.current} / {achievement.progress.target}{" "}
-            {achievement.progress.unit}
-          </div>
+          {achievement.status === "not_tracked" ? null : (
+            <>
+              <progress
+                value={achievement.progress.current}
+                max={achievement.progress.target}
+                aria-label={`${achievement.display_name} progress`}
+              />
+              <div className="progress-text">
+                {achievement.progress.current} / {achievement.progress.target}{" "}
+                {achievement.progress.unit}
+              </div>
+            </>
+          )}
           <AchievementEvidenceList
             evidence={achievement.evidence}
             itemLabel={evidenceListItemLabel(achievement.id)}
@@ -447,6 +465,17 @@ function AchievementEvidenceList({
       ) : null}
     </>
   );
+}
+
+function statusLabel(status: AchievementStatus) {
+  switch (status) {
+    case "complete":
+      return "Complete";
+    case "in_progress":
+      return "In progress";
+    case "not_tracked":
+      return "Not tracked";
+  }
 }
 
 function evidenceListItemLabel(achievementId: string) {

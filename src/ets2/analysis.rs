@@ -95,8 +95,9 @@ fn render_achievement_registry(registry: &AchievementRegistry) -> String {
 
 fn render_achievement(achievement: &Achievement) -> String {
     format!(
-        "    {{\n      \"id\": \"{}\",\n      \"display_name\": \"{}\",\n      \"description\": \"{}\",\n      \"status\": \"{}\",\n      \"progress\": {{ \"current\": {}, \"target\": {}, \"unit\": \"{}\" }},\n      \"evidence\": {}\n    }}",
+        "    {{\n      \"id\": \"{}\",\n      \"steam_api_name\": \"{}\",\n      \"display_name\": \"{}\",\n      \"description\": \"{}\",\n      \"status\": \"{}\",\n      \"progress\": {{ \"current\": {}, \"target\": {}, \"unit\": \"{}\" }},\n      \"evidence\": {}\n    }}",
         json_escape(achievement.id),
+        json_escape(achievement.steam_api_name),
         json_escape(achievement.display_name),
         json_escape(achievement.description),
         render_status(achievement.status),
@@ -111,6 +112,7 @@ fn render_status(status: AchievementStatus) -> &'static str {
     match status {
         AchievementStatus::Complete => "complete",
         AchievementStatus::InProgress => "in_progress",
+        AchievementStatus::NotTracked => "not_tracked",
     }
 }
 
@@ -215,5 +217,9 @@ mod tests {
         assert!(json.contains("\"id\": \"experience_beats_all\""));
         assert!(json.contains("\"id\": \"test_drive_limited\""));
         assert!(json.contains("\"items\": [\"gravel\"]"));
+        assert!(json.contains("\"steam_api_name\": \"job_all_trailer_types\""));
+        assert!(json.contains("\"id\": \"property_magnate\""));
+        assert!(json.contains("\"status\": \"not_tracked\""));
+        assert!(json.contains("€130,000"));
     }
 }
