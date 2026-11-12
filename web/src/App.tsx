@@ -593,6 +593,19 @@ const EVIDENCE_ITEM_LABELS: Record<string, string> = {
   volvo_trucks_lover: "deliveries",
   scania_trucks_lover: "deliveries",
   turkish_delight: "deliveries",
+  head_hunter: "agencies",
+  successfully_docked: "ports",
+  choo_choo: "crossings",
+  sardine: "crossings",
+  property_magnate: "garages",
+  working_with_the_elite: "garages",
+  performance_optimizer: "garages",
+  driver_exceptionnel: "routes",
+  go_nuclear: "cities",
+  check_in_check_out: "cities",
+  whatever_floats_your_boat: "cities",
+  captain: "cities",
+  sailor: "cities",
 };
 
 function evidenceListItemLabel(achievementId: string) {
