@@ -30,3 +30,4 @@ jobs:
         single-commit: true
         force: true
         clean: true
+
