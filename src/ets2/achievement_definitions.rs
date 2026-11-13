@@ -143,7 +143,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 110] = [
         steam_api_name: "map_discover_60",
         display_name: "I Am a GPS",
         description: "Discover at least 20,000 kilometers of roads",
-        tracking: not_tracked("The save has a discovered road distance field, but its unit has not been confirmed yet."),
+        tracking: tracked(i_am_a_gps),
     },
     AchievementDefinition {
         id: "pathfinder",
@@ -151,7 +151,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 110] = [
         steam_api_name: "map_discover_100",
         display_name: "Pathfinder",
         description: "Discover at least 40,000 kilometers of roads",
-        tracking: not_tracked("The save has a discovered road distance field, but its unit has not been confirmed yet."),
+        tracking: tracked(pathfinder),
     },
     AchievementDefinition {
         id: "choo_choo",

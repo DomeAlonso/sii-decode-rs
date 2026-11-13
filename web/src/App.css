@@ -169,6 +169,38 @@ textarea {
   color: #92400e;
 }
 
+.achievement-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.achievement-filter button {
+  border: 1px solid #d8dee8;
+  border-radius: 999px;
+  padding: 6px 14px;
+  background: #ffffff;
+  color: #152033;
+  font-size: 0.9rem;
+}
+
+.achievement-filter button[aria-pressed="true"] {
+  border-color: #1d4ed8;
+  background: #1d4ed8;
+  color: #ffffff;
+}
+
+.achievement-filter-empty {
+  margin: 0;
+  color: #5b6675;
+}
+
+.evidence-list li.evidence-complete .evidence-label,
+.evidence-list li.evidence-complete .evidence-value {
+  color: #047857;
+  font-weight: 700;
+}
+
 .achievement-group {
   border: 1px solid #d8dee8;
   border-radius: 8px;

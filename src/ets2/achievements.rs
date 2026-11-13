@@ -50,6 +50,8 @@ const IBERIAN_PILGRIMAGE_LEGS: [(&str, &str); 3] = [
     ("sevilla", "a_coruna"),
     ("pamplona", "a_coruna"),
 ];
+const I_AM_A_GPS_TARGET_KM: u32 = 20_000;
+const PATHFINDER_TARGET_KM: u32 = 40_000;
 const HEAD_HUNTER_TARGET_AGENCIES: u32 = 40;
 const PROPERTY_MAGNATE_TARGET_GARAGES: u32 = 30;
 // Company/city IDs below were checked against a 1.5x save's company list.
@@ -230,7 +232,9 @@ pub(crate) fn test_drive_limited(save: &SaveGame) -> AchievementEvaluation {
             .or_insert(0) += u64::from(entry.distance_km);
     }
 
-    let evidence = distance_by_brand
+    let mut brands = distance_by_brand.into_iter().collect::<Vec<_>>();
+    brands.sort_by(|left, right| right.1.cmp(&left.1).then_with(|| left.0.cmp(&right.0)));
+    let evidence = brands
         .iter()
         .map(|(brand, distance)| AchievementEvidence {
             label: brand.clone(),
@@ -379,6 +383,23 @@ pub(crate) fn profit_hunter(save: &SaveGame) -> AchievementEvaluation {
             complete,
         }],
     }
+}
+
+pub(crate) fn i_am_a_gps(save: &SaveGame) -> AchievementEvaluation {
+    discovered_roads(save, I_AM_A_GPS_TARGET_KM)
+}
+
+pub(crate) fn pathfinder(save: &SaveGame) -> AchievementEvaluation {
+    discovered_roads(save, PATHFINDER_TARGET_KM)
+}
+
+/// Uses `player.discovary_distance`, read as km of discovered road.
+fn discovered_roads(save: &SaveGame, target_km: u32) -> AchievementEvaluation {
+    let km = save
+        .career
+        .discovered_road_km
+        .map(|km| km.max(0.0).floor() as u32);
+    counter(km, target_km, "km", "Discovered roads")
 }
 
 pub(crate) fn choo_choo(save: &SaveGame) -> AchievementEvaluation {
@@ -1054,6 +1075,27 @@ mod tests {
             .evidence
             .iter()
             .any(|evidence| evidence.label == "Volvo"));
+        // Brands are listed by distance, longest first; 999 km is enough.
+        let brands = achievement
+            .evidence
+            .iter()
+            .map(|evidence| {
+                (
+                    evidence.label.as_str(),
+                    evidence.value.as_str(),
+                    evidence.complete,
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(brands[0], ("Scania", "1003 km", true));
+        assert_eq!(brands[4], ("MAN", "999 km", true));
+
+        let short = achievement_by_id(
+            &save_with_entries(vec![entry("cargo.gravel", 998, "vehicle.man.tgx", "cargo")]),
+            "test_drive_limited",
+        );
+        assert_eq!(short.evidence[0].value, "998 km");
+        assert!(!short.evidence[0].complete);
     }
 
     #[test]
@@ -1232,7 +1274,9 @@ mod tests {
                 "experience_beats_all",
                 "from_the_comfort_of_your_home",
                 "head_hunter",
+                "i_am_a_gps",
                 "long_hauler",
+                "pathfinder",
                 "profit_hunter",
                 "property_magnate",
                 "reliable_contractor",
@@ -1375,6 +1419,12 @@ mod tests {
         };
 
         let status = |id| achievement_by_id(&save, id).status;
+        assert_eq!(status("i_am_a_gps"), AchievementStatus::Complete);
+        assert_eq!(status("pathfinder"), AchievementStatus::InProgress);
+        let pathfinder = achievement_by_id(&save, "pathfinder");
+        assert_eq!(pathfinder.progress.current, 25_000);
+        assert_eq!(pathfinder.progress.target, 40_000);
+        assert_eq!(pathfinder.evidence[0].value, "25000 km");
         assert_eq!(status("head_hunter"), AchievementStatus::Complete);
         assert_eq!(
             status("from_the_comfort_of_your_home"),
@@ -1384,7 +1434,7 @@ mod tests {
         assert_eq!(status("choo_choo"), AchievementStatus::Complete);
         assert_eq!(status("sardine"), AchievementStatus::Complete);
         // Present in the save, but not confirmed enough to track.
-        for id in ["i_am_a_gps", "pathfinder", "zzzzz", "successfully_docked"] {
+        for id in ["zzzzz", "successfully_docked"] {
             assert_eq!(status(id), AchievementStatus::NotTracked, "{id}");
         }
 

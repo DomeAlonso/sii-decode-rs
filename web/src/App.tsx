@@ -387,10 +387,55 @@ function groupAchievements(analysis: TrackerAnalysis): AchievementGroup[] {
   return [...groups.values()].filter((group) => group.achievements.length > 0);
 }
 
+type AchievementFilter = "all" | AchievementStatus;
+
+const ACHIEVEMENT_FILTERS: Array<{ value: AchievementFilter; label: string }> =
+  [
+    { value: "all", label: "All" },
+    { value: "complete", label: "Complete" },
+    { value: "in_progress", label: "In progress" },
+    { value: "not_tracked", label: "Not tracked" },
+  ];
+
 function AchievementGroups({ analysis }: { analysis: TrackerAnalysis }) {
+  const [filter, setFilter] = useState<AchievementFilter>("all");
   const groups = groupAchievements(analysis);
+  const countFor = (value: AchievementFilter) =>
+    value === "all"
+      ? analysis.achievements.length
+      : analysis.achievements.filter(
+          (achievement) => achievement.status === value,
+        ).length;
+  const visibleGroups = groups
+    .map((group) => ({
+      group,
+      visible:
+        filter === "all"
+          ? group.achievements
+          : group.achievements.filter(
+              (achievement) => achievement.status === filter,
+            ),
+    }))
+    .filter(({ visible }) => visible.length > 0);
+
   return (
     <section className="achievement-groups" aria-label="Achievements">
+      <div
+        className="achievement-filter"
+        role="group"
+        aria-label="Filter achievements by status"
+      >
+        {ACHIEVEMENT_FILTERS.map(({ value, label }) => (
+          <button
+            key={value}
+            type="button"
+            aria-pressed={filter === value}
+            onClick={() => setFilter(value)}
+          >
+            {label} ({countFor(value)})
+          </button>
+        ))}
+      </div>
       {analysis.achievement_groups ? null : (
         <p className="warning" data-testid="tracker-stale-decoder">
           This analysis has no achievement sets. The decoder (WebAssembly)
@@ -398,11 +443,19 @@ function AchievementGroups({ analysis }: { analysis: TrackerAnalysis }) {
           <code>wasm-pack build --all-features</code> and redeploy.
         </p>
       )}
-      {groups.map((group, index) => (
+      {visibleGroups.length === 0 ? (
+        <p className="achievement-filter-empty">
+          No achievements match this filter.
+        </p>
+      ) : null}
+      {visibleGroups.map(({ group, visible }, index) => (
         <AchievementGroupSection
-          key={group.id}
+          // Reset expansion when the filter changes: a filter opens every
+          // set that has matches, "All" opens only the first one.
+          key={`${group.id}-${filter}`}
           group={group}
-          defaultExpanded={index === 0}
+          visibleAchievements={visible}
+          defaultExpanded={filter !== "all" || index === 0}
         />
       ))}
     </section>
@@ -411,9 +464,11 @@ function AchievementGroups({ analysis }: { analysis: TrackerAnalysis }) {
 
 function AchievementGroupSection({
   group,
+  visibleAchievements,
   defaultExpanded,
 }: {
   group: AchievementGroup;
+  visibleAchievements: Achievement[];
   defaultExpanded: boolean;
 }) {
   const [expanded, setExpanded] = useState(defaultExpanded);
@@ -445,9 +500,15 @@ function AchievementGroupSection({
       </h3>
       {expanded ? (
         <div id={contentId} className="achievement-group-content">
-          <p className="achievement-group-count">Achievements ({total})</p>
+          <p className="achievement-group-count">
+            Achievements (
+            {visibleAchievements.length === total
+              ? total
+              : `${visibleAchievements.length} of ${total}`}
+            )
+          </p>
           <AchievementList
-            achievements={group.achievements}
+            achievements={visibleAchievements}
             label={`${group.name} achievements`}
           />
         </div>
@@ -495,6 +556,7 @@ function AchievementList({
           <AchievementEvidenceList
             evidence={achievement.evidence}
             itemLabel={evidenceListItemLabel(achievement.id)}
+            highlightComplete={HIGHLIGHT_COMPLETE_EVIDENCE.has(achievement.id)}
           />
         </article>
       ))}
@@ -505,9 +567,11 @@ function AchievementList({
 function AchievementEvidenceList({
   evidence,
   itemLabel,
+  highlightComplete,
 }: {
   evidence: AchievementEvidence[];
   itemLabel: string | null;
+  highlightComplete: boolean;
 }) {
   const [expandedEvidence, setExpandedEvidence] =
     useState<AchievementEvidence | null>(null);
@@ -519,9 +583,20 @@ function AchievementEvidenceList({
         {evidence.map((item) => {
           const items = item.items ?? [];
           const hasList = itemLabel !== null && items.length > 1;
+          const highlighted = highlightComplete && item.complete;
           return (
-            <li key={item.label}>
-              <span className="evidence-label">{item.label}</span>
+            <li
+              key={item.label}
+              className={highlighted ? "evidence-complete" : undefined}
+            >
+              <span className="evidence-label">
+                {highlighted ? (
+                  <span className="evidence-check" aria-label="reached">
+                    ✓{" "}
+                  </span>
+                ) : null}
+                {item.label}
+              </span>
               {hasList ? (
                 <button
                   type="button"
@@ -552,7 +627,9 @@ function AchievementEvidenceList({
           >
             <div className="evidence-popout-heading">
               <div>
-                <h4 id="evidence-popout-title">{expandedEvidence.label}</h4>
+                <h4 id="evidence-popout-title">
+                  {evidenceListTitle(itemLabel, expandedEvidence, evidence)}
+                </h4>
                 <p>
                   {expandedItems.length} {itemLabel ?? "items"}
                 </p>
@@ -588,29 +665,49 @@ function statusLabel(status: AchievementStatus) {
   }
 }
 
+// What the "View N …" lists contain. Each list only holds what has been
+// collected so far, so the wording says so.
 const EVIDENCE_ITEM_LABELS: Record<string, string> = {
-  reliable_contractor: "companies",
-  experience_beats_all: "cargos",
-  all_is_possible: "cargos",
-  size_matters: "cargos",
-  the_bigger_the_better: "cargos",
-  giant: "cargos",
-  big_brother: "cargos",
-  not_a_canoe: "cargos",
-  volvo_trucks_lover: "deliveries",
-  scania_trucks_lover: "deliveries",
-  turkish_delight: "deliveries",
-  head_hunter: "agencies",
-  choo_choo: "crossings",
-  sardine: "crossings",
-  property_magnate: "garages",
-  go_nuclear: "cities",
-  whatever_floats_your_boat: "cities",
-  captain: "cities",
+  reliable_contractor: "companies worked with",
+  experience_beats_all: "delivered cargoes",
+  all_is_possible: "completed cargoes",
+  size_matters: "delivered oversize cargoes",
+  the_bigger_the_better: "delivered oversize cargoes",
+  giant: "delivered oversize cargoes",
+  not_a_canoe: "delivered oversize cargoes",
+  volvo_trucks_lover: "completed deliveries",
+  scania_trucks_lover: "completed deliveries",
+  turkish_delight: "qualifying deliveries",
+  head_hunter: "discovered agencies",
+  choo_choo: "used crossings",
+  sardine: "used crossings",
+  property_magnate: "owned garages",
+  go_nuclear: "cities delivered to",
+  whatever_floats_your_boat: "cities delivered to",
+  captain: "cities delivered to",
 };
+
+// Achievements whose evidence rows turn green once each row's goal is met.
+const HIGHLIGHT_COMPLETE_EVIDENCE = new Set(["test_drive_limited"]);
 
 function evidenceListItemLabel(achievementId: string) {
   return EVIDENCE_ITEM_LABELS[achievementId] ?? null;
+}
+
+function evidenceListTitle(
+  itemLabel: string | null,
+  item: AchievementEvidence,
+  allEvidence: AchievementEvidence[],
+) {
+  if (itemLabel === null) {
+    return item.label;
+  }
+  const title = itemLabel.charAt(0).toUpperCase() + itemLabel.slice(1);
+  // Several lists on one card (e.g. one per trailer type): name the row too.
+  const listCount = allEvidence.filter(
+    (evidence) => (evidence.items ?? []).length > 1,
+  ).length;
+  return listCount > 1 ? `${title}: ${item.label}` : title;
 }
 
 function formatCurrency(value: number) {

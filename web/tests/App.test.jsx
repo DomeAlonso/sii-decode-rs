@@ -123,6 +123,23 @@ vi.mock("../src/decode.worker?worker", () => {
                         ],
                       },
                       {
+                        id: "test_drive_limited",
+                        group: "base_game",
+                        display_name: "Test Drive Limited (5 Truck Brands)",
+                        description:
+                          "Drive 999 km during jobs with each of at least 5 truck brands, only your owned trucks count",
+                        status: "in_progress",
+                        progress: { current: 1, target: 5, unit: "brands" },
+                        evidence: [
+                          {
+                            label: "Scania",
+                            value: "1003 km",
+                            complete: true,
+                          },
+                          { label: "MAN", value: "500 km", complete: false },
+                        ],
+                      },
+                      {
                         id: "long_hauler",
                         group: "base_game",
                         display_name: "Long Hauler",
@@ -284,13 +301,21 @@ test("Tracker can render analysis", async () => {
   });
   expect(screen.getByText("Experience Beats All")).toBeInTheDocument();
   expect(screen.getByText("1 / 8 categories")).toBeInTheDocument();
-  await userEvent.click(screen.getByRole("button", { name: "View 2 cargos" }));
+  await userEvent.click(
+    screen.getByRole("button", { name: "View 2 delivered cargoes" }),
+  );
+  expect(
+    within(screen.getByRole("dialog")).getByRole("heading", {
+      name: "Delivered cargoes",
+    }),
+  ).toBeInTheDocument();
+  expect(screen.getByRole("dialog")).toHaveTextContent("2 delivered cargoes");
   expect(screen.getByRole("dialog")).toHaveTextContent("gravel");
   expect(screen.getByRole("dialog")).toHaveTextContent("sand");
   expect(screen.getByRole("dialog")).not.toHaveTextContent("+103 more");
   await userEvent.click(screen.getByRole("button", { name: "Close" }));
   expect(
-    screen.queryByRole("button", { name: "View 3 cargos" }),
+    screen.queryByRole("button", { name: /View 3/ }),
   ).not.toBeInTheDocument();
   expect(screen.getByText("gravel, 2201 km, 125000 EUR")).toBeInTheDocument();
   const deliveries = screen.getByText("Deliveries").closest(".metric");
@@ -299,7 +324,7 @@ test("Tracker can render analysis", async () => {
   const achievementsMetric = screen
     .getByText("Achievements")
     .closest(".metric");
-  expect(within(achievementsMetric).getByText("2 / 4")).toBeInTheDocument();
+  expect(within(achievementsMetric).getByText("2 / 5")).toBeInTheDocument();
   const untracked = screen.getByText("Property Magnate").closest("article");
   expect(within(untracked).getByText("Not tracked")).toBeInTheDocument();
   expect(within(untracked).queryByRole("progressbar")).not.toBeInTheDocument();
@@ -327,8 +352,8 @@ test("Tracker groups achievements by set and expands them on click", async () =>
 
   const baseGame = screen.getByRole("button", { name: /Base Game/ });
   expect(baseGame).toHaveAttribute("aria-expanded", "true");
-  expect(baseGame).toHaveTextContent("1 / 3 complete · 2 tracked");
-  expect(within(groups[0]).getByText("Achievements (3)")).toBeInTheDocument();
+  expect(baseGame).toHaveTextContent("1 / 4 complete · 3 tracked");
+  expect(within(groups[0]).getByText("Achievements (4)")).toBeInTheDocument();
 
   const specialTransport = screen.getByRole("button", {
     name: /Special Transport Expansion Achievements/,
@@ -341,7 +366,9 @@ test("Tracker groups achievements by set and expands them on click", async () =>
   expect(specialTransport).toHaveAttribute("aria-expanded", "true");
   const sizeMatters = screen.getByText("Size Matters").closest("article");
   await userEvent.click(
-    within(sizeMatters).getByRole("button", { name: "View 2 cargos" }),
+    within(sizeMatters).getByRole("button", {
+      name: "View 2 delivered oversize cargoes",
+    }),
   );
   expect(screen.getByRole("dialog")).toHaveTextContent("pilot_boat");
   await userEvent.click(screen.getByRole("button", { name: "Close" }));
@@ -349,6 +376,82 @@ test("Tracker groups achievements by set and expands them on click", async () =>
   await userEvent.click(baseGame);
   expect(baseGame).toHaveAttribute("aria-expanded", "false");
   expect(screen.queryByText("Long Hauler")).not.toBeInTheDocument();
+});
+
+test("Tracker filters achievements by status across all sets", async () => {
+  window.location.hash = "#tracker";
+  render(<App />);
+
+  await userEvent.upload(
+    screen.getByTestId("tracker-file-upload"),
+    new File(["BSII"], "save.sii"),
+  );
+  await waitFor(() => {
+    expect(screen.getByTestId("tracker-results")).toBeInTheDocument();
+  });
+
+  const filters = screen.getByRole("group", {
+    name: "Filter achievements by status",
+  });
+  expect(
+    within(filters).getByRole("button", { name: "All (5)" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  expect(
+    within(filters).getByRole("button", { name: "In progress (2)" }),
+  ).toBeInTheDocument();
+
+  // Complete: matches in both sets, and every matching set opens.
+  await userEvent.click(
+    within(filters).getByRole("button", { name: "Complete (2)" }),
+  );
+  expect(screen.getAllByTestId("achievement-group")).toHaveLength(2);
+  expect(screen.getByText("Long Hauler")).toBeInTheDocument();
+  expect(screen.getByText("Size Matters")).toBeInTheDocument();
+  expect(screen.queryByText("Experience Beats All")).not.toBeInTheDocument();
+  expect(screen.queryByText("Property Magnate")).not.toBeInTheDocument();
+  expect(screen.getByText("Achievements (1 of 4)")).toBeInTheDocument();
+
+  // Not tracked: the Special Transport set has none, so it is hidden.
+  await userEvent.click(
+    within(filters).getByRole("button", { name: "Not tracked (1)" }),
+  );
+  expect(screen.getAllByTestId("achievement-group")).toHaveLength(1);
+  expect(screen.getByText("Property Magnate")).toBeInTheDocument();
+  expect(screen.queryByText("Long Hauler")).not.toBeInTheDocument();
+
+  await userEvent.click(
+    within(filters).getByRole("button", { name: "All (5)" }),
+  );
+  expect(screen.getByText("Long Hauler")).toBeInTheDocument();
+  expect(screen.queryByText("Size Matters")).not.toBeInTheDocument();
+});
+
+test("Test Drive Limited highlights brands that reached 999 km", async () => {
+  window.location.hash = "#tracker";
+  render(<App />);
+
+  await userEvent.upload(
+    screen.getByTestId("tracker-file-upload"),
+    new File(["BSII"], "save.sii"),
+  );
+  await waitFor(() => {
+    expect(screen.getByTestId("tracker-results")).toBeInTheDocument();
+  });
+
+  const testDrive = screen
+    .getByText("Test Drive Limited (5 Truck Brands)")
+    .closest("article");
+  const scania = within(testDrive).getByText("Scania").closest("li");
+  const man = within(testDrive).getByText("MAN").closest("li");
+  expect(scania).toHaveClass("evidence-complete");
+  expect(within(scania).getByLabelText("reached")).toBeInTheDocument();
+  expect(within(scania).getByText("1003 km")).toBeInTheDocument();
+  expect(man).not.toHaveClass("evidence-complete");
+  expect(within(man).getByText("500 km")).toBeInTheDocument();
+
+  // Other cards do not highlight their completed evidence rows.
+  const longHauler = screen.getByText("Long Hauler").closest("article");
+  expect(longHauler.querySelector(".evidence-complete")).toBeNull();
 });
 
 test("Tracker warns when the decoder predates achievement sets", async () => {
