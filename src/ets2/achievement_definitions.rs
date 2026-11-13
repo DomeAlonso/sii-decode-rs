@@ -118,7 +118,14 @@ pub const ICELAND: AchievementGroup = AchievementGroup {
     steam_dlc_app_id: Some(3796990),
 };
 
-pub const ACHIEVEMENT_GROUPS: [AchievementGroup; 15] = [
+pub const COACHES: AchievementGroup = AchievementGroup {
+    id: "coaches",
+    name: "Coaches Expansion Achievements",
+    steam_group_id: 15,
+    steam_dlc_app_id: Some(3809270),
+};
+
+pub const ACHIEVEMENT_GROUPS: [AchievementGroup; 16] = [
     BASE_GAME,
     GREECE,
     SPECIAL_TRANSPORT,
@@ -134,9 +141,10 @@ pub const ACHIEVEMENT_GROUPS: [AchievementGroup; 15] = [
     DRIVING_ACADEMY,
     MULTI_EXPANSION,
     ICELAND,
+    COACHES,
 ];
 
-pub const ACHIEVEMENTS: [AchievementDefinition; 110] = [
+pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
     AchievementDefinition {
         id: "i_am_a_gps",
         group: BASE_GAME.id,
@@ -1016,5 +1024,37 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 110] = [
         display_name: "Outrun the Yule Cat",
         description: "Complete 3 livestock deliveries of sheep to or from 3 different farms in Iceland (requires Iceland DLC)",
         tracking: not_tracked("Needs a list of Icelandic farms and the sheep cargo ID, which the tracker does not have yet."),
+    },
+    AchievementDefinition {
+        id: "smooth_start",
+        group: COACHES.id,
+        steam_api_name: "bus_job_satisfaction",
+        display_name: "Smooth Start",
+        description: "Complete a coach job with 90% or higher passenger satisfaction (requires Coaches DLC)",
+        tracking: not_tracked("Needs coach job passenger satisfaction from the save, which the tracker does not read yet."),
+    },
+    AchievementDefinition {
+        id: "seasoned_traveller",
+        group: COACHES.id,
+        steam_api_name: "bus_jobs_owned_distance",
+        display_name: "Seasoned Traveller",
+        description: "Drive a total of 5,000 kilometers in your own vehicle during a coach job (requires Coaches DLC)",
+        tracking: not_tracked("Needs coach job distance in your own vehicle from the save, which the tracker does not read yet."),
+    },
+    AchievementDefinition {
+        id: "multitalented_driver",
+        group: COACHES.id,
+        steam_api_name: "bus_skills",
+        display_name: "Multitalented Driver",
+        description: "Spend at least one skill point in each coach skill (requires Coaches DLC)",
+        tracking: not_tracked("Needs coach skill points from the save, which the tracker does not read yet."),
+    },
+    AchievementDefinition {
+        id: "rule_of_threes",
+        group: COACHES.id,
+        steam_api_name: "bus_jobs_consecutive",
+        display_name: "Rule of Threes",
+        description: "Complete 3 consecutive jobs of at least 300 kilometers each with 100% satisfaction (requires Coaches DLC)",
+        tracking: not_tracked("Needs coach job passenger satisfaction from the save, which the tracker does not read yet."),
     },
 ];

@@ -216,3 +216,14 @@ Implementation progress of Achievement tracking
 | Saga Sights          | View cutscenes from at least 8 viewpoints in Iceland (requires Iceland DLC)                                   | [ ]         |  [ ]   |       |
 | Lord of the Ringroad | Complete 3 excellent deliveries in this order: Reykjavík - Höfn - Akureyri - Reykjavík (requires Iceland DLC) | [ ]         |  [ ]   |       |
 | Outrun the Yule Cat  | Complete 3 livestock deliveries of sheep to or from 3 different farms in Iceland (requires Iceland DLC)       | [ ]         |  [ ]   |       |
+
+## Coaches Expansion Achievements
+
+4 achievements
+
+| Achievement          | Description                                                                                               | Tracker | Tested | Notes |
+| -------------------- | --------------------------------------------------------------------------------------------------------- | ------- | :----: | ----- |
+| Smooth Start         | Complete a coach job with 90% or higher passenger satisfaction (requires Coaches DLC)                     | [ ]     |  [ ]   |       |
+| Seasoned Traveller   | Drive a total of 5,000 kilometers in your own vehicle during a coach job (requires Coaches DLC)           | [ ]     |  [ ]   |       |
+| Multitalented Driver | Spend at least one skill point in each coach skill (requires Coaches DLC)                                 | [ ]     |  [ ]   |       |
+| Rule of Threes       | Complete 3 consecutive jobs of at least 300 kilometers each with 100% satisfaction (requires Coaches DLC) | [ ]     |  [ ]   |       |

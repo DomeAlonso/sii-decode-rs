@@ -1208,8 +1208,8 @@ mod tests {
     fn registry_lists_every_steam_achievement_grouped_by_set() {
         let registry = evaluate_achievements(&save_with_entries(Vec::new()));
 
-        assert_eq!(registry.achievements.len(), 110);
-        assert_eq!(registry.groups.len(), 15);
+        assert_eq!(registry.achievements.len(), 114);
+        assert_eq!(registry.groups.len(), 16);
         assert_eq!(registry.groups[0].id, "base_game");
         assert_eq!(registry.groups[0].name, "Base Game");
         assert_eq!(registry.groups[0].steam_dlc_app_id, None);
@@ -1225,13 +1225,24 @@ mod tests {
         assert_eq!(count_in("special_transport"), 8);
         assert_eq!(count_in("driving_academy"), 10);
         assert_eq!(count_in("iceland"), 4);
+        assert_eq!(count_in("coaches"), 4);
+        let coaches = registry.groups.last().unwrap();
+        assert_eq!(coaches.id, "coaches");
+        assert_eq!(coaches.name, "Coaches Expansion Achievements");
+        assert_eq!(coaches.steam_group_id, 15);
+        assert_eq!(coaches.steam_dlc_app_id, Some(3809270));
+        assert!(registry
+            .achievements
+            .iter()
+            .filter(|achievement| achievement.group == "coaches")
+            .all(|achievement| achievement.status == AchievementStatus::NotTracked));
         assert_eq!(
             registry
                 .groups
                 .iter()
                 .map(|group| count_in(group.id))
                 .sum::<usize>(),
-            110
+            114
         );
 
         assert_eq!(registry.achievements[0].steam_api_name, "map_discover_60");
@@ -1250,8 +1261,8 @@ mod tests {
             .iter()
             .map(|achievement| achievement.steam_api_name)
             .collect::<BTreeSet<_>>();
-        assert_eq!(ids.len(), 110);
-        assert_eq!(api_names.len(), 110);
+        assert_eq!(ids.len(), 114);
+        assert_eq!(api_names.len(), 114);
     }
 
     #[test]
