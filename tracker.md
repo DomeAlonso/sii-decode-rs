@@ -8,8 +8,8 @@ Implementation progress of Achievement tracking
 
 | Achievement                             | Description                                                                                                            | Tracker     | Tested | Notes |
 | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ----------- | :----: | ----- |
-| I Am a GPS                              | Discover at least 20,000 kilometers of roads                                                                           | [x]         |  [ ]   |       |
-| Pathfinder                              | Discover at least 40,000 kilometers of roads                                                                           | [x]         |  [ ]   |       |
+| I Am a GPS                              | Discover at least 20,000 kilometers of roads                                                                           | [x]         |  [X]   |       |
+| Pathfinder                              | Discover at least 40,000 kilometers of roads                                                                           | [x]         |  [X]   |       |
 | Choo-Choo                               | Use the train to cross the channel                                                                                     | [x]         |  [ ]   |       |
 | Sardine                                 | Utilize a boat                                                                                                         | [x]         |  [ ]   |       |
 | Head Hunter                             | Discover at least 40 recruitment agencies                                                                              | [x]         |  [ ]   |       |
@@ -29,7 +29,7 @@ Implementation progress of Achievement tracking
 | Minimaxer                               | Gain 20,000 XP for several consecutive jobs with the total distance below 10,000 km                                    | [ ]         |  [ ]   |       |
 | Honey, I'm Home                         | Use quick travel to return to your headquarters                                                                        | [ ]         |  [ ]   |       |
 | National Company                        | Own at least one largest garage in your headquarter country                                                            | [x]         |  [ ]   |       |
-| Property Magnate                        | Own at least 30 garages                                                                                                | [x]         |  [ ]   |       |
+| Property Magnate                        | Own at least 30 garages                                                                                                | [x]         |  [x]   |       |
 | Working with the Elite                  | Achieve 100% of productivity for at least 5 large garages at the same time                                             | [x]         |  [ ]   |       |
 | Swimming in Success                     | Reach an average daily profit of €450,000                                                                              | [x]         |  [ ]   |       |
 | Performance Optimizer                   | Achieve at least 75% of the average garage productivity for 10 large garages in your company                           | [x]         |  [ ]   |       |
