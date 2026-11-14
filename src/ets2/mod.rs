@@ -1,6 +1,7 @@
 mod achievement_definitions;
 mod achievements;
 mod analysis;
+mod cities;
 pub mod generated;
 mod save;
 
@@ -12,9 +13,11 @@ pub use achievements::{
     EXPERIENCE_BEATS_ALL_CATEGORIES,
 };
 pub use analysis::{analyze_save_to_json, AnalyzeError};
+pub use cities::{city_by_id, City, CITIES};
 pub use save::{
-    company_city, CareerStats, DeliveryAnalytics, DeliveryLog, DeliveryLogEntry, FerryCrossing,
-    Garage, GarageSize, SaveGame, SaveGameError, CARGO_PREFIX, COMPANY_PREFIX, VEHICLE_PREFIX,
+    company_city, BusJob, CareerStats, DailyProfit, DeliveryAnalytics, DeliveryLog,
+    DeliveryLogEntry, FerryCrossing, Garage, GarageSize, SaveGame, SaveGameError, CARGO_PREFIX,
+    COACH_SKILLS, COMPANY_PREFIX, VEHICLE_PREFIX,
 };
 
 #[derive(Debug, Clone, Eq, PartialEq)]

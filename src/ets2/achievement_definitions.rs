@@ -191,7 +191,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "use_all_ports",
         display_name: "Successfully Docked",
         description: "Use at least 5 ports in the game (counts sea, river and train ports)",
-        tracking: not_tracked("The save has a ferry log field, but whether arrival ports count as used has not been confirmed yet."),
+        tracking: tracked(successfully_docked),
     },
     AchievementDefinition {
         id: "from_the_comfort_of_your_home",
@@ -311,7 +311,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "garages_in_hq_country",
         display_name: "National Company",
         description: "Own at least one largest garage in your headquarter country",
-        tracking: not_tracked("Needs a mapping of cities to countries (garages and HQ are in the save), which the tracker does not have yet."),
+        tracking: tracked(national_company),
     },
     AchievementDefinition {
         id: "property_magnate",
@@ -327,7 +327,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "large_garage_productivity",
         display_name: "Working with the Elite",
         description: "Achieve 100% of productivity for at least 5 large garages at the same time",
-        tracking: not_tracked("The save has a garage productivity field, but how it maps to the in-game percentage has not been confirmed yet."),
+        tracking: tracked(working_with_the_elite),
     },
     AchievementDefinition {
         id: "swimming_in_success",
@@ -335,7 +335,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "daily_profit",
         display_name: "Swimming in Success",
         description: "Reach an average daily profit of €450,000",
-        tracking: not_tracked("Needs company profit history from the save, which the tracker does not read yet."),
+        tracking: tracked(swimming_in_success),
     },
     AchievementDefinition {
         id: "performance_optimizer",
@@ -343,7 +343,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "productivity_all_garages",
         display_name: "Performance Optimizer",
         description: "Achieve at least 75% of the average garage productivity for 10 large garages in your company",
-        tracking: not_tracked("The save has a garage productivity field, but how it maps to the in-game percentage has not been confirmed yet."),
+        tracking: tracked(performance_optimizer),
     },
     AchievementDefinition {
         id: "aspects_of_professionalism",
@@ -383,7 +383,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "gr_visit_cities",
         display_name: "Odyssean Voyager",
         description: "Discover at least 12 cities in Greece (requires Greece DLC)",
-        tracking: not_tracked("Needs a list of which cities belong to this map expansion (visited cities are in the save), which the tracker does not have yet."),
+        tracking: tracked(odyssean_voyager),
     },
     AchievementDefinition {
         id: "sights_and_legends",
@@ -527,7 +527,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "fr_visit_cities",
         display_name: "Bon Voyage!",
         description: "Discover at least 20 French cities (requires Vive la France ! DLC) ",
-        tracking: not_tracked("Needs a list of which cities belong to this map expansion (visited cities are in the save), which the tracker does not have yet."),
+        tracking: tracked(bon_voyage),
     },
     AchievementDefinition {
         id: "landmark_tour",
@@ -567,7 +567,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "fr_visit_corsica",
         display_name: "All Around the Isle of Beauty",
         description: "Discover at least 4 Corsican cities (requires Vive la France ! DLC)",
-        tracking: not_tracked("Needs a list of which cities belong to this map expansion (visited cities are in the save), which the tracker does not have yet."),
+        tracking: tracked(all_around_the_isle_of_beauty),
     },
     AchievementDefinition {
         id: "balkan_explorer",
@@ -575,7 +575,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "be_visit_cities",
         display_name: "Balkan Explorer",
         description: "Discover at least 20 Road to the Black Sea DLC cities (requires Road to the Black Sea DLC)",
-        tracking: not_tracked("Needs a list of which cities belong to this map expansion (visited cities are in the save), which the tracker does not have yet."),
+        tracking: tracked(balkan_explorer),
     },
     AchievementDefinition {
         id: "ranger",
@@ -647,7 +647,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "sc_visit_cities",
         display_name: "Sightseer",
         description: "Discover at least 15 Scandinavia DLC cities (requires Scandinavia DLC)",
-        tracking: not_tracked("Needs a list of which cities belong to this map expansion (visited cities are in the save), which the tracker does not have yet."),
+        tracking: tracked(sightseer),
     },
     AchievementDefinition {
         id: "miner",
@@ -671,7 +671,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "ba_visit_cities",
         display_name: "Baltic Tourist",
         description: "Discover at least 20 Beyond the Baltic Sea DLC cities (requires Beyond the Baltic Sea DLC)",
-        tracking: not_tracked("Needs a list of which cities belong to this map expansion (visited cities are in the save), which the tracker does not have yet."),
+        tracking: tracked(baltic_tourist),
     },
     AchievementDefinition {
         id: "grand_tour",
@@ -719,7 +719,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "pc_visit_cities",
         display_name: "Polar Explorer",
         description: "Discover at least 20 cities in Nordic Horizons (requires Nordic Horizons DLC)",
-        tracking: not_tracked("Needs a list of which cities belong to this map expansion (visited cities are in the save), which the tracker does not have yet."),
+        tracking: not_tracked("Needs a list of Nordic Horizons cities (cities_by_dlc.json has none), which the tracker does not have yet."),
     },
     AchievementDefinition {
         id: "northern_secrets",
@@ -751,7 +751,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "ib_visit_cities",
         display_name: "Conquistador",
         description: "Discover at least 30 cities in Iberia (requires Iberia DLC)",
-        tracking: not_tracked("Needs a list of which cities belong to this map expansion (visited cities are in the save), which the tracker does not have yet."),
+        tracking: tracked(conquistador),
     },
     AchievementDefinition {
         id: "lets_get_shipping",
@@ -799,7 +799,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "it_visit_cities",
         display_name: "Imperator",
         description: "Discover at least 15 Italian cities (requires Italia DLC)",
-        tracking: not_tracked("Needs a list of which cities belong to this map expansion (visited cities are in the save), which the tracker does not have yet."),
+        tracking: tracked(imperator),
     },
     AchievementDefinition {
         id: "true_sicilian",
@@ -847,7 +847,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "it_visit_sardinia",
         display_name: "All Around the Blue Island",
         description: "Discover at least 2 Sardinian cities (requires Italia DLC)",
-        tracking: not_tracked("Needs a list of which cities belong to this map expansion (visited cities are in the save), which the tracker does not have yet."),
+        tracking: tracked(all_around_the_blue_island),
     },
     AchievementDefinition {
         id: "road_to_the_adriatics",
@@ -855,7 +855,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "bw_visit_cities",
         display_name: "Road to the Adriatics",
         description: "Discover at least 20 cities in West Balkans (requires West Balkans DLC)",
-        tracking: not_tracked("Needs a list of which cities belong to this map expansion (visited cities are in the save), which the tracker does not have yet."),
+        tracking: tracked(road_to_the_adriatics),
     },
     AchievementDefinition {
         id: "grand_adventurer",
@@ -999,7 +999,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "is_visit_cities",
         display_name: "Land of Fire and Ice",
         description: "Discover at least 12 cities in Iceland (requires Iceland DLC)",
-        tracking: not_tracked("Needs a list of which cities belong to this map expansion (visited cities are in the save), which the tracker does not have yet."),
+        tracking: not_tracked("Needs a list of Iceland cities (cities_by_dlc.json has none), which the tracker does not have yet."),
     },
     AchievementDefinition {
         id: "saga_sights",
@@ -1031,7 +1031,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "bus_job_satisfaction",
         display_name: "Smooth Start",
         description: "Complete a coach job with 90% or higher passenger satisfaction (requires Coaches DLC)",
-        tracking: not_tracked("Needs coach job passenger satisfaction from the save, which the tracker does not read yet."),
+        tracking: tracked(smooth_start),
     },
     AchievementDefinition {
         id: "seasoned_traveller",
@@ -1039,7 +1039,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "bus_jobs_owned_distance",
         display_name: "Seasoned Traveller",
         description: "Drive a total of 5,000 kilometers in your own vehicle during a coach job (requires Coaches DLC)",
-        tracking: not_tracked("Needs coach job distance in your own vehicle from the save, which the tracker does not read yet."),
+        tracking: tracked(seasoned_traveller),
     },
     AchievementDefinition {
         id: "multitalented_driver",
@@ -1047,7 +1047,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "bus_skills",
         display_name: "Multitalented Driver",
         description: "Spend at least one skill point in each coach skill (requires Coaches DLC)",
-        tracking: not_tracked("Needs coach skill points from the save, which the tracker does not read yet."),
+        tracking: tracked(multitalented_driver),
     },
     AchievementDefinition {
         id: "rule_of_threes",
@@ -1055,6 +1055,6 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "bus_jobs_consecutive",
         display_name: "Rule of Threes",
         description: "Complete 3 consecutive jobs of at least 300 kilometers each with 100% satisfaction (requires Coaches DLC)",
-        tracking: not_tracked("Needs coach job passenger satisfaction from the save, which the tracker does not read yet."),
+        tracking: tracked(rule_of_threes),
     },
 ];

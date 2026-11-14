@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use crate::bsii_file::{BsiiFile, DataBlock, DataValue, Id};
 use crate::ets2::generated::cargo_metadata::CARGOS;
@@ -51,14 +51,57 @@ pub struct CareerStats {
     pub garages: Option<Vec<Garage>>,
     /// All `ferry_log_entry` blocks; `None` when the save has no `ferry_log`.
     pub ferry_crossings: Option<Vec<FerryCrossing>>,
+    /// `economy.visited_cities`: city IDs the player has discovered.
+    pub visited_cities: Option<Vec<String>>,
+    /// In-game day: `economy.game_time` (minutes) / 1440. Profit logs use the
+    /// same day numbers.
+    pub current_day: Option<u32>,
+    /// Coach skill points, in [`COACH_SKILLS`] order; `None` without Coaches data.
+    pub coach_skills: Option<Vec<(&'static str, u64)>>,
+    /// `bus_job_log` entries, oldest first; `None` when the save has no `bus_job_log`.
+    pub bus_jobs: Option<Vec<BusJob>>,
+}
+
+/// Coach skill fields in the `economy` block (added with the Coaches DLC),
+/// with the label shown for each.
+pub const COACH_SKILLS: [(&str, &str); 6] = [
+    ("long_duty", "Long duty"),
+    ("tight_schedule", "Tight schedule"),
+    ("satisfaction_decrease", "Satisfaction decrease"),
+    ("low_acceleration", "Low acceleration"),
+    ("satisfaction_increase", "Satisfaction increase"),
+    ("ecodriving", "Ecodriving"),
+];
+
+/// One finished coach job (`bus_job_log_entry`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct BusJob {
+    /// `quick_job` (coach provided) or `company_job` (your own coach).
+    pub kind: String,
+    pub from: String,
+    pub to: String,
+    pub distance_km: u32,
+    /// Passenger satisfaction, 0.0 to 1.0.
+    pub satisfaction: f64,
+    pub start_time: u64,
+}
+
+/// One day of a garage's `profit_log` (revenue minus wages, maintenance and fuel).
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub struct DailyProfit {
+    pub day: u32,
+    pub profit: i64,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Garage {
     pub city: String,
     pub size: GarageSize,
-    /// 0.0 to 1.0.
+    /// `garage.productivity` as stored by the game, 0.0 to 1.0.
     pub productivity: f64,
+    /// Profit per day from the garage's `profit_log` (all its drivers), oldest
+    /// first. The game keeps only the last couple of weeks.
+    pub daily_profit: Vec<DailyProfit>,
 }
 
 /// `garage.status`, identified by the number of vehicle slots each status has.
@@ -312,9 +355,18 @@ impl CareerStats {
         let economy_field = |name: &str| economy.and_then(|block| block.field(bsii, name));
         let player_field = |name: &str| player.and_then(|block| block.field(bsii, name));
 
+        let profit_logs = blocks_by_id(bsii, "profit_log");
+        let profit_entries = blocks_by_id(bsii, "profit_log_entry");
         let garages = bsii
             .blocks_by_prototype_name("garage")
             .map(|block| Garage {
+                daily_profit: match block.field(bsii, "profit_log") {
+                    Some(DataValue::Id(log_id)) => profit_logs
+                        .get(log_id)
+                        .map(|log| daily_profit(bsii, log, &profit_entries))
+                        .unwrap_or_default(),
+                    _ => Vec::new(),
+                },
                 city: last_id_part(&block.id),
                 size: GarageSize::from_status(
                     block
@@ -343,6 +395,41 @@ impl CareerStats {
             })
             .collect::<Vec<_>>();
 
+        let coach_skills = COACH_SKILLS
+            .iter()
+            .map(|(field, label)| Some((*label, economy_field(field).and_then(value_as_u64)?)))
+            .collect::<Option<Vec<_>>>();
+        let has_bus_job_log = bsii
+            .blocks_by_prototype_name("bus_job_log")
+            .next()
+            .is_some();
+        let mut bus_jobs = bsii
+            .blocks_by_prototype_name("bus_job_log_entry")
+            .filter_map(|block| {
+                let text = |name| {
+                    block
+                        .field(bsii, name)
+                        .and_then(value_as_string)
+                        .map(|value| value.trim_start_matches("city.").to_string())
+                };
+                Some(BusJob {
+                    kind: field_text(bsii, block, "type")?,
+                    from: text("source_bus_stop_name").unwrap_or_default(),
+                    to: text("target_bus_stop_name").unwrap_or_default(),
+                    distance_km: block
+                        .field(bsii, "travelled_distance")
+                        .and_then(value_as_u64)
+                        .unwrap_or(0) as u32,
+                    satisfaction: block.field(bsii, "satisfaction").and_then(value_as_f64)?,
+                    start_time: block
+                        .field(bsii, "start_time")
+                        .and_then(value_as_u64)
+                        .unwrap_or(0),
+                })
+            })
+            .collect::<Vec<_>>();
+        bus_jobs.sort_by_key(|job| job.start_time);
+
         Self {
             discovered_road_km: player_field("discovary_distance").and_then(value_as_f64),
             sleeping_count: player_field("sleeping_count").and_then(value_as_u64),
@@ -354,7 +441,63 @@ impl CareerStats {
             garages: (!garages.is_empty()).then_some(garages),
             ferry_crossings: (has_ferry_log || !ferry_crossings.is_empty())
                 .then_some(ferry_crossings),
+            visited_cities: economy_field("visited_cities").and_then(value_as_string_array),
+            current_day: economy_field("game_time")
+                .and_then(value_as_u64)
+                .map(|minutes| (minutes / MINUTES_PER_DAY) as u32),
+            coach_skills,
+            bus_jobs: (has_bus_job_log || !bus_jobs.is_empty()).then_some(bus_jobs),
         }
+    }
+}
+
+const MINUTES_PER_DAY: u64 = 24 * 60;
+
+fn blocks_by_id<'a>(
+    bsii: &'a BsiiFile<'a>,
+    prototype: &'a str,
+) -> HashMap<&'a Id, &'a DataBlock<'a>> {
+    bsii.blocks_by_prototype_name(prototype)
+        .map(|block| (&block.id, block))
+        .collect()
+}
+
+/// Sums a `profit_log`'s entries per `timestamp_day`.
+fn daily_profit(
+    bsii: &BsiiFile<'_>,
+    log: &DataBlock<'_>,
+    entries: &HashMap<&Id, &DataBlock<'_>>,
+) -> Vec<DailyProfit> {
+    let Some(DataValue::IdArray(entry_ids)) = log.field(bsii, "stats_data") else {
+        return Vec::new();
+    };
+    let mut by_day = BTreeMap::<u32, i64>::new();
+    for entry in entry_ids.iter().filter_map(|id| entries.get(id)) {
+        let amount = |name| entry.field(bsii, name).and_then(value_as_i64).unwrap_or(0);
+        let Some(day) = entry.field(bsii, "timestamp_day").and_then(value_as_u64) else {
+            continue;
+        };
+        *by_day.entry(day as u32).or_insert(0) +=
+            amount("revenue") - amount("wage") - amount("maintenance") - amount("fuel");
+    }
+    by_day
+        .into_iter()
+        .map(|(day, profit)| DailyProfit { day, profit })
+        .collect()
+}
+
+/// A field as text, resolving enum values (e.g. `bus_job_log_entry.type`)
+/// to their names through the block's prototype.
+fn field_text(bsii: &BsiiFile<'_>, block: &DataBlock<'_>, name: &str) -> Option<String> {
+    match block.field(bsii, name)? {
+        DataValue::Enum(index) => block
+            .prototype(bsii)?
+            .field(name)?
+            .enum_values
+            .as_ref()?
+            .get(index)
+            .map(|value| (*value).to_string()),
+        value => value_as_string(value),
     }
 }
 
@@ -373,6 +516,17 @@ fn value_as_u64(value: &DataValue<'_>) -> Option<u64> {
         DataValue::Int64(value) => u64::try_from(*value).ok(),
         DataValue::UInt64(value) => Some(*value),
         DataValue::Float(value) if *value >= 0.0 => Some(*value as u64),
+        _ => None,
+    }
+}
+
+fn value_as_i64(value: &DataValue<'_>) -> Option<i64> {
+    match value {
+        DataValue::Int32(value) => Some(i64::from(*value)),
+        DataValue::UInt32(value) | DataValue::Enum(value) => Some(i64::from(*value)),
+        DataValue::UInt16(value) => Some(i64::from(*value)),
+        DataValue::Int64(value) => Some(*value),
+        DataValue::UInt64(value) => i64::try_from(*value).ok(),
         _ => None,
     }
 }
@@ -721,6 +875,143 @@ mod tests {
         assert_eq!(crossings.len(), 1);
         assert!(crossings[0].is_train());
         assert_eq!(crossings[0].use_count, 2);
+    }
+
+    #[test]
+    fn parses_visited_cities_coach_jobs_skills_and_garage_profit() {
+        let mut economy_fields = vec!["visited_cities", "game_time"];
+        economy_fields.extend(COACH_SKILLS.iter().map(|(field, _)| *field));
+        let mut bus_entry = prototype(
+            5,
+            "bus_job_log_entry",
+            &[
+                "type",
+                "source_bus_stop_name",
+                "target_bus_stop_name",
+                "travelled_distance",
+                "start_time",
+                "satisfaction",
+            ],
+        );
+        bus_entry.1.value_prototypes[0].enum_values =
+            Some(HashMap::from([(0, "quick_job"), (1, "company_job")]));
+        let mut economy_data = vec![
+            DataValue::EncodedStringArray(vec!["toulouse".to_string(), "clermont".to_string()]),
+            // Day 5870, 7 minutes past midnight.
+            DataValue::UInt32(5870 * 1440 + 7),
+        ];
+        economy_data.extend([1, 2, 0, 0, 0, 0].map(DataValue::UInt32));
+        let bus_job =
+            |id: u64, kind: u32, from: &'static str, start: u32, satisfaction: f32| DataBlock {
+                prototype_id: 5,
+                id: Id::Nameless(id),
+                data: vec![
+                    DataValue::Enum(kind),
+                    DataValue::String(from),
+                    DataValue::String("city.metz"),
+                    DataValue::UInt32(657),
+                    DataValue::UInt32(start),
+                    DataValue::Float(satisfaction),
+                ],
+            };
+        let profit_entry = |id: u64, revenue: i64, wage: i64, day: u32| DataBlock {
+            prototype_id: 8,
+            id: Id::Nameless(id),
+            data: vec![
+                DataValue::Int64(revenue),
+                DataValue::Int64(wage),
+                DataValue::Int64(100),
+                DataValue::Int64(200),
+                DataValue::UInt32(day),
+            ],
+        };
+        let bsii = BsiiFile {
+            header: b"BSII",
+            version: 3,
+            prototypes: HashMap::from([
+                prototype(1, "economy", &economy_fields),
+                prototype(4, "bus_job_log", &["entries"]),
+                bus_entry,
+                prototype(6, "garage", &["status", "profit_log", "productivity"]),
+                prototype(7, "profit_log", &["stats_data"]),
+                prototype(
+                    8,
+                    "profit_log_entry",
+                    &["revenue", "wage", "maintenance", "fuel", "timestamp_day"],
+                ),
+            ]),
+            data_blocks: vec![
+                DataBlock {
+                    prototype_id: 1,
+                    id: Id::Nameless(1),
+                    data: economy_data,
+                },
+                DataBlock {
+                    prototype_id: 4,
+                    id: Id::Nameless(4),
+                    data: vec![DataValue::IdArray(vec![Id::Nameless(51), Id::Nameless(50)])],
+                },
+                // Stored newest first here; parsing orders by start time.
+                bus_job(51, 1, "city.clermont", 2000, 0.95),
+                bus_job(50, 0, "city.toulouse", 1000, 1.0),
+                DataBlock {
+                    prototype_id: 6,
+                    id: Id::Named(vec!["garage".to_string(), "toulouse".to_string()]),
+                    data: vec![
+                        DataValue::UInt32(3),
+                        DataValue::Id(Id::Nameless(70)),
+                        DataValue::Float(0.6446),
+                    ],
+                },
+                DataBlock {
+                    prototype_id: 7,
+                    id: Id::Nameless(70),
+                    data: vec![DataValue::IdArray(vec![
+                        Id::Nameless(80),
+                        Id::Nameless(81),
+                        Id::Nameless(82),
+                    ])],
+                },
+                profit_entry(80, 10_000, 4_000, 5868),
+                profit_entry(81, 2_000, 1_000, 5868),
+                profit_entry(82, 0, 0, 5869),
+            ],
+        };
+
+        let career = CareerStats::from_bsii(&bsii);
+
+        assert_eq!(
+            career.visited_cities,
+            Some(vec!["toulouse".to_string(), "clermont".to_string()])
+        );
+        assert_eq!(career.current_day, Some(5870));
+        let skills = career.coach_skills.unwrap();
+        assert_eq!(skills.len(), 6);
+        assert_eq!(skills[0], ("Long duty", 1));
+        assert_eq!(skills[1], ("Tight schedule", 2));
+        let jobs = career.bus_jobs.unwrap();
+        assert_eq!(jobs.len(), 2);
+        assert_eq!(jobs[0].kind, "quick_job");
+        assert_eq!(jobs[0].from, "toulouse");
+        assert_eq!(jobs[0].to, "metz");
+        assert_eq!(jobs[1].kind, "company_job");
+        assert!((jobs[1].satisfaction - 0.95).abs() < 1e-6);
+        let garage = &career.garages.unwrap()[0];
+        assert_eq!(garage.size, GarageSize::Large);
+        // Day 5868: (10000 - 4000 - 300) + (2000 - 1000 - 300); day 5869: -300.
+        assert_eq!(
+            garage.daily_profit,
+            vec![
+                DailyProfit {
+                    day: 5868,
+                    profit: 6_400
+                },
+                DailyProfit {
+                    day: 5869,
+                    profit: -300
+                },
+            ]
+        );
     }
 
     #[test]

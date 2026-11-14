@@ -1,9 +1,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::ets2::achievement_definitions::{ACHIEVEMENTS, ACHIEVEMENT_GROUPS};
+use crate::ets2::cities::{city_by_id, City, CITIES};
 use crate::ets2::generated::cargo_metadata::CARGOS;
 use crate::ets2::save::{
-    cargo_id, company_city, company_id, truck_brand, DeliveryLogEntry, SaveGame,
+    cargo_id, company_city, company_id, truck_brand, BusJob, DeliveryLogEntry, Garage, GarageSize,
+    SaveGame,
 };
 use crate::ets2::CargoMetadata;
 
@@ -52,6 +54,31 @@ const IBERIAN_PILGRIMAGE_LEGS: [(&str, &str); 3] = [
 ];
 const I_AM_A_GPS_TARGET_KM: u32 = 20_000;
 const PATHFINDER_TARGET_KM: u32 = 40_000;
+const SUCCESSFULLY_DOCKED_TARGET_PORTS: u32 = 5;
+const SWIMMING_IN_SUCCESS_TARGET_PROFIT: u32 = 450_000;
+const WORKING_WITH_THE_ELITE_TARGET_GARAGES: u32 = 5;
+const PERFORMANCE_OPTIMIZER_TARGET_GARAGES: u32 = 10;
+const PERFORMANCE_OPTIMIZER_TARGET_AVERAGE: f64 = 0.75;
+/// `garage.productivity` is an f32 fraction; 1.0 is 100%.
+const FULL_PRODUCTIVITY: f64 = 0.9999;
+const PROFIT_WEEK_DAYS: u32 = 7;
+const SMOOTH_START_TARGET_SATISFACTION: f64 = 0.9;
+const SEASONED_TRAVELLER_TARGET_KM: u32 = 5_000;
+const RULE_OF_THREES_TARGET_JOBS: u32 = 3;
+const RULE_OF_THREES_MIN_DISTANCE_KM: u32 = 300;
+/// Satisfaction is an f32 fraction; 1.0 is 100%.
+const FULL_SATISFACTION: f64 = 0.9999;
+/// Coach jobs done in your own coach (quick jobs provide one).
+const OWN_COACH_JOB_TYPE: &str = "company_job";
+const CORSICA_CITIES: [&str; 6] = [
+    "ajaccio",
+    "bastia",
+    "bonifacio",
+    "calvi",
+    "lile_rousse",
+    "porto_vecchi",
+];
+const SARDINIA_CITIES: [&str; 3] = ["cagliari", "olbia", "sassari"];
 const HEAD_HUNTER_TARGET_AGENCIES: u32 = 40;
 const PROPERTY_MAGNATE_TARGET_GARAGES: u32 = 30;
 // Company/city IDs below were checked against a 1.5x save's company list.
@@ -400,6 +427,527 @@ fn discovered_roads(save: &SaveGame, target_km: u32) -> AchievementEvaluation {
         .discovered_road_km
         .map(|km| km.max(0.0).floor() as u32);
     counter(km, target_km, "km", "Discovered roads")
+}
+
+// ---- City discovery -------------------------------------------------------
+
+enum CityScope {
+    Country(&'static str),
+    Dlc(&'static str),
+    Ids(&'static [&'static str]),
+}
+
+impl CityScope {
+    fn contains(&self, city: &City) -> bool {
+        match self {
+            CityScope::Country(country) => city.country == *country,
+            CityScope::Dlc(dlc) => city.dlc == *dlc,
+            CityScope::Ids(ids) => ids.contains(&city.id),
+        }
+    }
+}
+
+/// Counts `economy.visited_cities` that fall in `scope`, using the city list
+/// from `cities_by_dlc.json`.
+fn discovered_cities(save: &SaveGame, scope: CityScope, target: u32) -> AchievementEvaluation {
+    let Some(visited) = &save.career.visited_cities else {
+        return missing_data(target, "cities", "Discovered cities");
+    };
+    let in_scope = CITIES
+        .iter()
+        .filter(|city| scope.contains(city))
+        .copied()
+        .collect::<Vec<_>>();
+    let discovered = in_scope
+        .iter()
+        .filter(|city| visited.iter().any(|id| id == city.id))
+        .map(city_label)
+        .collect::<BTreeSet<_>>();
+    let missing = in_scope
+        .iter()
+        .filter(|city| !visited.iter().any(|id| id == city.id))
+        .map(city_label)
+        .collect::<BTreeSet<_>>();
+    let mut evaluation = set_achievement(&discovered, target, "cities", "Discovered");
+    evaluation.evidence.push(AchievementEvidence {
+        label: "Not discovered yet".to_string(),
+        value: if missing.is_empty() {
+            "none".to_string()
+        } else {
+            summarize_set(&missing, SUMMARY_EVIDENCE_LIMIT)
+        },
+        items: Vec::new(),
+        complete: missing.is_empty(),
+    });
+    evaluation
+}
+
+pub(crate) fn odyssean_voyager(save: &SaveGame) -> AchievementEvaluation {
+    discovered_cities(save, CityScope::Country("greece"), 12)
+}
+
+pub(crate) fn bon_voyage(save: &SaveGame) -> AchievementEvaluation {
+    discovered_cities(save, CityScope::Country("france"), 20)
+}
+
+pub(crate) fn all_around_the_isle_of_beauty(save: &SaveGame) -> AchievementEvaluation {
+    discovered_cities(save, CityScope::Ids(&CORSICA_CITIES), 4)
+}
+
+pub(crate) fn balkan_explorer(save: &SaveGame) -> AchievementEvaluation {
+    discovered_cities(save, CityScope::Dlc("road_to_the_black_sea"), 20)
+}
+
+pub(crate) fn sightseer(save: &SaveGame) -> AchievementEvaluation {
+    discovered_cities(save, CityScope::Dlc("scandinavia"), 15)
+}
+
+pub(crate) fn baltic_tourist(save: &SaveGame) -> AchievementEvaluation {
+    discovered_cities(save, CityScope::Dlc("beyond_the_baltic_sea"), 20)
+}
+
+pub(crate) fn conquistador(save: &SaveGame) -> AchievementEvaluation {
+    discovered_cities(save, CityScope::Dlc("iberia"), 30)
+}
+
+pub(crate) fn imperator(save: &SaveGame) -> AchievementEvaluation {
+    discovered_cities(save, CityScope::Country("italy"), 15)
+}
+
+pub(crate) fn all_around_the_blue_island(save: &SaveGame) -> AchievementEvaluation {
+    discovered_cities(save, CityScope::Ids(&SARDINIA_CITIES), 2)
+}
+
+pub(crate) fn road_to_the_adriatics(save: &SaveGame) -> AchievementEvaluation {
+    discovered_cities(save, CityScope::Dlc("west_balkans"), 20)
+}
+
+// ---- Garages and company profit -------------------------------------------
+
+pub(crate) fn national_company(save: &SaveGame) -> AchievementEvaluation {
+    let Some(garages) = &save.career.garages else {
+        return missing_data(1, "large garages", "Garages");
+    };
+    let Some(hq) = save.career.hq_city.as_deref() else {
+        return missing_data(1, "large garages", "Headquarters");
+    };
+    let Some(hq_city) = city_by_id(hq) else {
+        return missing_data(1, "large garages", &format!("Country of HQ city {hq}"));
+    };
+    let in_country = garages
+        .iter()
+        .filter(|garage| garage.size == GarageSize::Large)
+        .filter(|garage| {
+            city_by_id(&garage.city).is_some_and(|city| city.country == hq_city.country)
+        })
+        .map(garage_name)
+        .collect::<BTreeSet<_>>();
+    let mut evaluation = set_achievement(&in_country, 1, "large garages", "Large garages there");
+    evaluation.evidence.insert(
+        0,
+        AchievementEvidence {
+            label: "Headquarters".to_string(),
+            value: format!("{} ({})", hq_city.name, hq_city.country),
+            items: Vec::new(),
+            complete: true,
+        },
+    );
+    evaluation
+}
+
+pub(crate) fn swimming_in_success(save: &SaveGame) -> AchievementEvaluation {
+    let Some(garages) = &save.career.garages else {
+        return missing_data(SWIMMING_IN_SUCCESS_TARGET_PROFIT, "EUR", "Profit log");
+    };
+    // Garage profit logs together cover every driver, the player included.
+    let mut by_day = std::collections::BTreeMap::<u32, i64>::new();
+    for entry in garages.iter().flat_map(|garage| &garage.daily_profit) {
+        *by_day.entry(entry.day).or_insert(0) += entry.profit;
+    }
+    let (Some(first_day), Some(last_day)) = (
+        by_day.keys().next().copied(),
+        by_day.keys().next_back().copied(),
+    ) else {
+        return missing_data(SWIMMING_IN_SUCCESS_TARGET_PROFIT, "EUR", "Profit log");
+    };
+    let (best_day, best_profit) = by_day
+        .iter()
+        .max_by_key(|(_, profit)| **profit)
+        .map(|(day, profit)| (*day, *profit))
+        .unwrap_or((first_day, 0));
+    let average = by_day.values().sum::<i64>() / by_day.len() as i64;
+    let current = u32::try_from(best_profit.max(0)).unwrap_or(u32::MAX);
+    let days_ago = |day: u32| match save
+        .career
+        .current_day
+        .map(|today| today.saturating_sub(day))
+    {
+        Some(0) => "today".to_string(),
+        Some(1) => "yesterday".to_string(),
+        Some(days) => format!("{days} days ago"),
+        None => format!("day {day}"),
+    };
+
+    AchievementEvaluation {
+        status: status_from_progress(current, SWIMMING_IN_SUCCESS_TARGET_PROFIT),
+        progress: AchievementProgress {
+            current,
+            target: SWIMMING_IN_SUCCESS_TARGET_PROFIT,
+            unit: "EUR",
+        },
+        evidence: vec![
+            AchievementEvidence {
+                label: "Best day".to_string(),
+                value: format!("{best_profit} EUR ({})", days_ago(best_day)),
+                items: Vec::new(),
+                complete: current >= SWIMMING_IN_SUCCESS_TARGET_PROFIT,
+            },
+            AchievementEvidence {
+                label: format!("Average of {} days", by_day.len()),
+                value: format!("{average} EUR"),
+                items: Vec::new(),
+                complete: average >= i64::from(SWIMMING_IN_SUCCESS_TARGET_PROFIT),
+            },
+            AchievementEvidence {
+                label: "Note".to_string(),
+                value: format!(
+                    "The save only keeps the last {} days of profit ({} to {}), so older days are not checked",
+                    last_day - first_day + 1,
+                    days_ago(first_day),
+                    days_ago(last_day)
+                ),
+                items: Vec::new(),
+                complete: false,
+            },
+        ],
+    }
+}
+
+pub(crate) fn working_with_the_elite(save: &SaveGame) -> AchievementEvaluation {
+    let Some(large) = large_garages(save) else {
+        return missing_data(WORKING_WITH_THE_ELITE_TARGET_GARAGES, "garages", "Garages");
+    };
+    let full = large
+        .iter()
+        .filter(|garage| garage.productivity >= FULL_PRODUCTIVITY)
+        .count() as u32;
+    let summaries = large
+        .iter()
+        .map(|garage| garage_productivity_summary(save, garage))
+        .collect::<Vec<_>>();
+
+    AchievementEvaluation {
+        status: status_from_progress(full, WORKING_WITH_THE_ELITE_TARGET_GARAGES),
+        progress: AchievementProgress {
+            current: full,
+            target: WORKING_WITH_THE_ELITE_TARGET_GARAGES,
+            unit: "large garages at 100%",
+        },
+        evidence: vec![AchievementEvidence {
+            label: "Large garages".to_string(),
+            value: summarize_list(&summaries),
+            items: summaries.clone(),
+            complete: full >= WORKING_WITH_THE_ELITE_TARGET_GARAGES,
+        }],
+    }
+}
+
+pub(crate) fn performance_optimizer(save: &SaveGame) -> AchievementEvaluation {
+    let Some(large) = large_garages(save) else {
+        return missing_data(PERFORMANCE_OPTIMIZER_TARGET_GARAGES, "garages", "Garages");
+    };
+    let count = large.len() as u32;
+    // Average over all large garages, so extra low-productivity ones count against it.
+    let average = if large.is_empty() {
+        0.0
+    } else {
+        large.iter().map(|garage| garage.productivity).sum::<f64>() / large.len() as f64
+    };
+    let enough = count >= PERFORMANCE_OPTIMIZER_TARGET_GARAGES;
+    let average_met = average >= PERFORMANCE_OPTIMIZER_TARGET_AVERAGE;
+    let summaries = large
+        .iter()
+        .map(|garage| garage_productivity_summary(save, garage))
+        .collect::<Vec<_>>();
+
+    AchievementEvaluation {
+        status: if enough && average_met {
+            AchievementStatus::Complete
+        } else {
+            AchievementStatus::InProgress
+        },
+        // The bar follows the average; the garage count is its own row.
+        progress: AchievementProgress {
+            current: (average * 100.0).floor() as u32,
+            target: (PERFORMANCE_OPTIMIZER_TARGET_AVERAGE * 100.0) as u32,
+            unit: "% average productivity",
+        },
+        evidence: vec![
+            AchievementEvidence {
+                label: "Large garages owned".to_string(),
+                value: format!("{count} (needs {PERFORMANCE_OPTIMIZER_TARGET_GARAGES})"),
+                items: Vec::new(),
+                complete: enough,
+            },
+            AchievementEvidence {
+                label: "Large garages".to_string(),
+                value: summarize_list(&summaries),
+                items: summaries.clone(),
+                complete: enough,
+            },
+            AchievementEvidence {
+                label: "Average productivity".to_string(),
+                value: format!("{:.0}% (needs 75%)", average * 100.0),
+                items: Vec::new(),
+                complete: average_met,
+            },
+        ],
+    }
+}
+
+fn large_garages(save: &SaveGame) -> Option<Vec<&Garage>> {
+    save.career.garages.as_ref().map(|garages| {
+        garages
+            .iter()
+            .filter(|garage| garage.size == GarageSize::Large)
+            .collect()
+    })
+}
+
+fn garage_name(garage: &Garage) -> String {
+    city_name(&garage.city)
+}
+
+/// Display name for a city ID, falling back to the ID itself.
+fn city_name(id: &str) -> String {
+    city_by_id(id).map_or_else(|| id.to_string(), city_label)
+}
+
+/// The city's name; names in Greek or Cyrillic script also get the city ID,
+/// so they stay readable ("Αθήνα (athens)").
+fn city_label(city: &City) -> String {
+    let non_latin = city
+        .name
+        .chars()
+        .any(|c| ('\u{0370}'..='\u{03FF}').contains(&c) || ('\u{0400}'..='\u{04FF}').contains(&c));
+    if non_latin {
+        format!("{} ({})", city.name, city.id)
+    } else {
+        city.name.to_string()
+    }
+}
+
+/// "Helsinki 56% · 147245 EUR profit in 7 days" (game productivity, then the
+/// garage's profit over the last 7 days from its profit log).
+fn garage_productivity_summary(save: &SaveGame, garage: &Garage) -> String {
+    let week_profit = save.career.current_day.map(|today| {
+        garage
+            .daily_profit
+            .iter()
+            .filter(|entry| entry.day + PROFIT_WEEK_DAYS > today)
+            .map(|entry| entry.profit)
+            .sum::<i64>()
+    });
+    match week_profit {
+        Some(profit) => format!(
+            "{} {:.0}% · {profit} EUR profit in {PROFIT_WEEK_DAYS} days",
+            garage_name(garage),
+            garage.productivity * 100.0
+        ),
+        None => format!(
+            "{} {:.0}%",
+            garage_name(garage),
+            garage.productivity * 100.0
+        ),
+    }
+}
+
+// ---- Coaches ---------------------------------------------------------------
+
+pub(crate) fn smooth_start(save: &SaveGame) -> AchievementEvaluation {
+    let Some(jobs) = &save.career.bus_jobs else {
+        return missing_data(1, "coach jobs", "Coach jobs");
+    };
+    let qualifying = jobs
+        .iter()
+        .filter(|job| job.satisfaction >= SMOOTH_START_TARGET_SATISFACTION)
+        .map(bus_job_summary)
+        .collect::<Vec<_>>();
+    let best = jobs
+        .iter()
+        .map(|job| job.satisfaction)
+        .fold(None, |best: Option<f64>, value| {
+            Some(best.map_or(value, |b| b.max(value)))
+        });
+    let current = qualifying.len() as u32;
+
+    AchievementEvaluation {
+        status: status_from_progress(current, 1),
+        progress: AchievementProgress {
+            current,
+            target: 1,
+            unit: "coach jobs",
+        },
+        evidence: vec![
+            AchievementEvidence {
+                label: "Best satisfaction".to_string(),
+                value: best.map_or_else(
+                    || "missing".to_string(),
+                    |value| format!("{:.0}% (needs 90%)", value * 100.0),
+                ),
+                items: Vec::new(),
+                complete: current >= 1,
+            },
+            AchievementEvidence {
+                label: "Jobs at 90% or more".to_string(),
+                value: summarize_list(&qualifying),
+                items: qualifying.clone(),
+                complete: current >= 1,
+            },
+        ],
+    }
+}
+
+pub(crate) fn seasoned_traveller(save: &SaveGame) -> AchievementEvaluation {
+    let Some(jobs) = &save.career.bus_jobs else {
+        return missing_data(SEASONED_TRAVELLER_TARGET_KM, "km", "Coach jobs");
+    };
+    let own = jobs
+        .iter()
+        .filter(|job| job.kind == OWN_COACH_JOB_TYPE)
+        .collect::<Vec<_>>();
+    let current = own.iter().map(|job| job.distance_km).sum::<u32>();
+    let summaries = own
+        .iter()
+        .map(|job| bus_job_summary(job))
+        .collect::<Vec<_>>();
+
+    AchievementEvaluation {
+        status: status_from_progress(current, SEASONED_TRAVELLER_TARGET_KM),
+        progress: AchievementProgress {
+            current,
+            target: SEASONED_TRAVELLER_TARGET_KM,
+            unit: "km",
+        },
+        evidence: vec![
+            AchievementEvidence {
+                label: "Own-coach jobs".to_string(),
+                value: summarize_list(&summaries),
+                items: summaries.clone(),
+                complete: current >= SEASONED_TRAVELLER_TARGET_KM,
+            },
+            AchievementEvidence {
+                label: "Note".to_string(),
+                value: "Counts company jobs (your own coach); quick jobs use a provided coach"
+                    .to_string(),
+                items: Vec::new(),
+                complete: false,
+            },
+        ],
+    }
+}
+
+pub(crate) fn multitalented_driver(save: &SaveGame) -> AchievementEvaluation {
+    let Some(skills) = &save.career.coach_skills else {
+        return missing_data(skills_target(), "coach skills", "Coach skills");
+    };
+    let evidence = skills
+        .iter()
+        .map(|(label, points)| AchievementEvidence {
+            label: (*label).to_string(),
+            value: format!("{points} points"),
+            items: Vec::new(),
+            complete: *points >= 1,
+        })
+        .collect::<Vec<_>>();
+    let current = evidence.iter().filter(|item| item.complete).count() as u32;
+    let target = skills.len() as u32;
+
+    AchievementEvaluation {
+        status: status_from_progress(current, target),
+        progress: AchievementProgress {
+            current,
+            target,
+            unit: "coach skills",
+        },
+        evidence,
+    }
+}
+
+fn skills_target() -> u32 {
+    crate::ets2::save::COACH_SKILLS.len() as u32
+}
+
+pub(crate) fn rule_of_threes(save: &SaveGame) -> AchievementEvaluation {
+    let Some(jobs) = &save.career.bus_jobs else {
+        return missing_data(RULE_OF_THREES_TARGET_JOBS, "jobs in a row", "Coach jobs");
+    };
+    let qualifies = |job: &BusJob| {
+        job.distance_km >= RULE_OF_THREES_MIN_DISTANCE_KM && job.satisfaction >= FULL_SATISFACTION
+    };
+    let (mut best, mut streak) = (0_u32, 0_u32);
+    for job in jobs {
+        streak = if qualifies(job) { streak + 1 } else { 0 };
+        best = best.max(streak);
+    }
+    let qualifying = jobs
+        .iter()
+        .filter(|job| qualifies(job))
+        .map(bus_job_summary)
+        .collect::<Vec<_>>();
+
+    AchievementEvaluation {
+        status: status_from_progress(best, RULE_OF_THREES_TARGET_JOBS),
+        progress: AchievementProgress {
+            current: best,
+            target: RULE_OF_THREES_TARGET_JOBS,
+            unit: "jobs in a row",
+        },
+        evidence: vec![AchievementEvidence {
+            label: "300 km+ jobs at 100%".to_string(),
+            value: summarize_list(&qualifying),
+            items: qualifying.clone(),
+            complete: best >= RULE_OF_THREES_TARGET_JOBS,
+        }],
+    }
+}
+
+fn bus_job_summary(job: &BusJob) -> String {
+    format!(
+        "{} → {}, {} km, {:.0}%",
+        city_name(&job.from),
+        city_name(&job.to),
+        job.distance_km,
+        job.satisfaction * 100.0
+    )
+}
+
+// ---- Ferries ---------------------------------------------------------------
+
+pub(crate) fn successfully_docked(save: &SaveGame) -> AchievementEvaluation {
+    let Some(crossings) = &save.career.ferry_crossings else {
+        return missing_data(SUCCESSFULLY_DOCKED_TARGET_PORTS, "ports", "Ferry log");
+    };
+    // The Channel Tunnel (tunnel_c, tunnel_d) is a train, not a port.
+    let ports = crossings
+        .iter()
+        .filter(|crossing| !crossing.is_train())
+        .flat_map(|crossing| [crossing.from.clone(), crossing.to.clone()])
+        .filter(|port| !port.is_empty())
+        .collect::<BTreeSet<_>>();
+    let mut evaluation = set_achievement(
+        &ports,
+        SUCCESSFULLY_DOCKED_TARGET_PORTS,
+        "ports",
+        "Ports used",
+    );
+    evaluation.evidence.push(AchievementEvidence {
+        label: "Note".to_string(),
+        value: "Road to the Black Sea river ferries are in the ferry log too; whether Steam counts them for this achievement is not confirmed".to_string(),
+        items: Vec::new(),
+        complete: false,
+    });
+    evaluation
 }
 
 pub(crate) fn choo_choo(save: &SaveGame) -> AchievementEvaluation {
@@ -1014,7 +1562,8 @@ fn profit_hunter_criteria_met(entry: &DeliveryLogEntry) -> u32 {
 mod tests {
     use super::*;
     use crate::ets2::{
-        CareerStats, DeliveryLog, DeliveryLogEntry, FerryCrossing, Garage, GarageSize,
+        BusJob, CareerStats, DailyProfit, DeliveryLog, DeliveryLogEntry, FerryCrossing, Garage,
+        GarageSize,
     };
 
     #[test]
@@ -1235,7 +1784,7 @@ mod tests {
             .achievements
             .iter()
             .filter(|achievement| achievement.group == "coaches")
-            .all(|achievement| achievement.status == AchievementStatus::NotTracked));
+            .all(|achievement| achievement.status != AchievementStatus::NotTracked));
         assert_eq!(
             registry
                 .groups
@@ -1287,21 +1836,40 @@ mod tests {
                 "head_hunter",
                 "i_am_a_gps",
                 "long_hauler",
+                "national_company",
                 "pathfinder",
+                "performance_optimizer",
                 "profit_hunter",
                 "property_magnate",
                 "reliable_contractor",
                 "sardine",
+                "successfully_docked",
+                "swimming_in_success",
                 "test_drive_limited",
+                "working_with_the_elite",
                 // DLC sets
+                "all_around_the_blue_island",
+                "all_around_the_isle_of_beauty",
+                "balkan_explorer",
+                "baltic_tourist",
+                "bon_voyage",
                 "captain",
+                "conquistador",
                 "giant",
                 "go_nuclear",
                 "iberian_pilgrimage",
+                "imperator",
+                "multitalented_driver",
                 "not_a_canoe",
+                "odyssean_voyager",
                 "orient_express",
+                "road_to_the_adriatics",
+                "rule_of_threes",
                 "scania_trucks_lover",
+                "seasoned_traveller",
+                "sightseer",
                 "size_matters",
+                "smooth_start",
                 "the_bigger_the_better",
                 "turkish_delight",
                 "volvo_trucks_lover",
@@ -1309,12 +1877,14 @@ mod tests {
             ])
         );
 
-        let untracked = achievement_by_id(&save_with_entries(Vec::new()), "national_company");
-        assert_eq!(untracked.display_name, "National Company");
+        let untracked = achievement_by_id(&save_with_entries(Vec::new()), "polar_explorer");
+        assert_eq!(untracked.display_name, "Polar Explorer");
         assert_eq!(untracked.status, AchievementStatus::NotTracked);
         assert_eq!(untracked.evidence.len(), 1);
         assert!(!untracked.evidence[0].complete);
-        assert!(untracked.evidence[0].value.contains("cities to countries"));
+        assert!(untracked.evidence[0]
+            .value
+            .contains("Nordic Horizons cities"));
 
         // Tracked achievements whose save data is absent stay in progress.
         let no_garages = achievement_by_id(&save_with_entries(Vec::new()), "property_magnate");
@@ -1427,6 +1997,7 @@ mod tests {
                 crossing("rostock", "trelleborg"),
                 crossing("esbjerg", "hull"),
             ]),
+            ..CareerStats::default()
         };
 
         let status = |id| achievement_by_id(&save, id).status;
@@ -1445,15 +2016,228 @@ mod tests {
         assert_eq!(status("choo_choo"), AchievementStatus::Complete);
         assert_eq!(status("sardine"), AchievementStatus::Complete);
         // Present in the save, but not confirmed enough to track.
-        for id in ["zzzzz", "successfully_docked"] {
-            assert_eq!(status(id), AchievementStatus::NotTracked, "{id}");
-        }
+        assert_eq!(status("zzzzz"), AchievementStatus::NotTracked);
+        // hull, esbjerg, rostock, trelleborg: the Channel Tunnel is not a port.
+        let docked = achievement_by_id(&save, "successfully_docked");
+        assert_eq!(docked.progress.current, 4);
+        assert_eq!(docked.status, AchievementStatus::InProgress);
+        assert!(!docked.evidence[0].items.contains(&"tunnel_c".to_string()));
+        assert!(docked.evidence[1].value.contains("river ferries"));
 
         save.career.ferry_crossings = Some(vec![crossing("hull", "esbjerg")]);
         assert_eq!(
             achievement_by_id(&save, "choo_choo").status,
             AchievementStatus::InProgress
         );
+    }
+
+    #[test]
+    fn evaluates_city_discovery_by_country_dlc_and_island() {
+        let mut save = save_with_entries(Vec::new());
+        // "clermont" and "porto_vecchi" are save IDs that differ from cities_by_dlc.json.
+        save.career.visited_cities = Some(
+            [
+                "paris",
+                "lyon",
+                "clermont",
+                "toulouse",
+                "ajaccio",
+                "bastia",
+                "calvi",
+                "porto_vecchi",
+                "goteborg",
+                "malmo",
+                "milano",
+                "olbia",
+            ]
+            .map(String::from)
+            .to_vec(),
+        );
+        let achievement = |id| achievement_by_id(&save, id);
+
+        let bon_voyage = achievement("bon_voyage");
+        assert_eq!(bon_voyage.progress.current, 8);
+        assert_eq!(bon_voyage.progress.target, 20);
+        assert!(bon_voyage.evidence[0]
+            .items
+            .contains(&"Clermont-Ferrand".to_string()));
+        assert!(bon_voyage.evidence[1].value.contains("Le Havre"));
+
+        let corsica = achievement("all_around_the_isle_of_beauty");
+        assert_eq!(corsica.progress.current, 4);
+        assert_eq!(corsica.status, AchievementStatus::Complete);
+        assert!(corsica.evidence[0]
+            .items
+            .contains(&"Porto-Vecchio".to_string()));
+
+        assert_eq!(achievement("sightseer").progress.current, 2);
+        assert_eq!(achievement("sightseer").progress.target, 15);
+        // Italian cities count from the base game too (Milano).
+        assert_eq!(achievement("imperator").progress.current, 2);
+        let sardinia = achievement("all_around_the_blue_island");
+        assert_eq!(sardinia.progress.current, 1);
+        assert_eq!(sardinia.evidence[1].value, "Cagliari, Sassari");
+
+        // Greek names also show the city ID.
+        save.career.visited_cities = Some(vec!["athens".to_string()]);
+        let greece = achievement_by_id(&save, "odyssean_voyager");
+        assert_eq!(greece.evidence[0].value, "Αθήνα (athens)");
+
+        // Nordic Horizons and Iceland are not in the city list.
+        for id in ["polar_explorer", "land_of_fire_and_ice"] {
+            assert_eq!(
+                achievement_by_id(&save, id).status,
+                AchievementStatus::NotTracked,
+                "{id}"
+            );
+        }
+    }
+
+    #[test]
+    fn evaluates_national_company_in_headquarters_country() {
+        let mut save = save_with_entries(Vec::new());
+        save.career.hq_city = Some("toulouse".to_string());
+        save.career.garages = Some(vec![
+            garage("lyon", GarageSize::Small, 0.5),
+            garage("milano", GarageSize::Large, 0.5),
+        ]);
+        let national = achievement_by_id(&save, "national_company");
+        assert_eq!(national.status, AchievementStatus::InProgress);
+        assert_eq!(national.evidence[0].value, "Toulouse (france)");
+
+        save.career
+            .garages
+            .as_mut()
+            .unwrap()
+            .push(garage("clermont", GarageSize::Large, 0.5));
+        let national = achievement_by_id(&save, "national_company");
+        assert_eq!(national.status, AchievementStatus::Complete);
+        assert_eq!(national.evidence[1].value, "Clermont-Ferrand");
+    }
+
+    #[test]
+    fn evaluates_swimming_in_success_from_garage_profit_logs() {
+        let mut save = save_with_entries(Vec::new());
+        save.career.current_day = Some(5870);
+        let mut stuttgart = garage("stuttgart", GarageSize::Large, 0.44);
+        stuttgart.daily_profit = vec![profit(5856, 40_000), profit(5868, 300_000)];
+        let mut toulouse = garage("toulouse", GarageSize::Large, 0.64);
+        toulouse.daily_profit = vec![profit(5868, 61_575), profit(5870, -1_000)];
+        save.career.garages = Some(vec![stuttgart, toulouse]);
+
+        let success = achievement_by_id(&save, "swimming_in_success");
+
+        assert_eq!(success.status, AchievementStatus::InProgress);
+        assert_eq!(success.progress.current, 361_575);
+        assert_eq!(success.progress.target, 450_000);
+        assert_eq!(success.evidence[0].value, "361575 EUR (2 days ago)");
+        assert_eq!(success.evidence[1].label, "Average of 3 days");
+        assert_eq!(
+            success.evidence[2].value,
+            "The save only keeps the last 15 days of profit (14 days ago to today), so older days are not checked"
+        );
+
+        save.career.garages.as_mut().unwrap()[1].daily_profit[0].profit = 150_000;
+        assert_eq!(
+            achievement_by_id(&save, "swimming_in_success").status,
+            AchievementStatus::Complete
+        );
+    }
+
+    #[test]
+    fn evaluates_garage_productivity_achievements() {
+        let mut save = save_with_entries(Vec::new());
+        save.career.current_day = Some(5870);
+        let mut garages = (0..5)
+            .map(|index| garage(&format!("full_{index}"), GarageSize::Large, 1.0))
+            .collect::<Vec<_>>();
+        garages
+            .extend((0..5).map(|index| garage(&format!("half_{index}"), GarageSize::Large, 0.5)));
+        // Small garages never count.
+        garages.push(garage("zurich", GarageSize::Small, 1.0));
+        garages[0].daily_profit = vec![profit(5863, 1_000), profit(5864, 300_000)];
+        save.career.garages = Some(garages);
+
+        let elite = achievement_by_id(&save, "working_with_the_elite");
+        assert_eq!(elite.progress.current, 5);
+        assert_eq!(elite.status, AchievementStatus::Complete);
+        // Day 5863 is outside the last 7 days (5864 to 5870).
+        assert_eq!(
+            elite.evidence[0].items[0],
+            "full_0 100% · 300000 EUR profit in 7 days"
+        );
+
+        let optimizer = achievement_by_id(&save, "performance_optimizer");
+        assert_eq!(optimizer.progress.current, 75);
+        assert_eq!(optimizer.progress.target, 75);
+        assert_eq!(optimizer.evidence[0].value, "10 (needs 10)");
+        assert_eq!(optimizer.evidence[2].value, "75% (needs 75%)");
+        assert_eq!(optimizer.status, AchievementStatus::Complete);
+
+        // An 11th, empty large garage pulls the average below 75%.
+        save.career
+            .garages
+            .as_mut()
+            .unwrap()
+            .push(garage("empty", GarageSize::Large, 0.0));
+        assert_eq!(
+            achievement_by_id(&save, "performance_optimizer").status,
+            AchievementStatus::InProgress
+        );
+    }
+
+    #[test]
+    fn evaluates_coach_achievements() {
+        let mut save = save_with_entries(Vec::new());
+        save.career.bus_jobs = Some(vec![
+            bus_job("quick_job", "dortmund", 26, 0.85),
+            bus_job("company_job", "toulouse", 400, 1.0),
+            bus_job("company_job", "clermont", 657, 1.0),
+            bus_job("company_job", "metz", 299, 1.0),
+            bus_job("company_job", "lyon", 2_000, 1.0),
+        ]);
+        save.career.coach_skills = Some(
+            crate::ets2::save::COACH_SKILLS
+                .iter()
+                .map(|(_, label)| (*label, 1))
+                .collect(),
+        );
+
+        let smooth = achievement_by_id(&save, "smooth_start");
+        assert_eq!(smooth.status, AchievementStatus::Complete);
+        assert_eq!(smooth.evidence[0].value, "100% (needs 90%)");
+        assert_eq!(
+            smooth.evidence[1].items[0],
+            "Toulouse → Clermont-Ferrand, 400 km, 100%"
+        );
+
+        // Only company jobs (own coach): 400 + 657 + 299 + 2000.
+        let traveller = achievement_by_id(&save, "seasoned_traveller");
+        assert_eq!(traveller.progress.current, 3_356);
+        assert_eq!(traveller.status, AchievementStatus::InProgress);
+
+        assert_eq!(
+            achievement_by_id(&save, "multitalented_driver").status,
+            AchievementStatus::Complete
+        );
+
+        // The 299 km job breaks the streak.
+        let threes = achievement_by_id(&save, "rule_of_threes");
+        assert_eq!(threes.progress.current, 2);
+        assert_eq!(threes.status, AchievementStatus::InProgress);
+
+        save.career.bus_jobs.as_mut().unwrap()[3].distance_km = 300;
+        assert_eq!(
+            achievement_by_id(&save, "rule_of_threes").status,
+            AchievementStatus::Complete
+        );
+
+        // Without Coaches data these stay in progress with a clear message.
+        save.career.bus_jobs = None;
+        save.career.coach_skills = None;
+        let smooth = achievement_by_id(&save, "smooth_start");
+        assert_eq!(smooth.status, AchievementStatus::InProgress);
+        assert_eq!(smooth.evidence[0].value, "not found in this save");
     }
 
     #[test]
@@ -1592,6 +2376,21 @@ mod tests {
         }
     }
 
+    fn profit(day: u32, profit: i64) -> DailyProfit {
+        DailyProfit { day, profit }
+    }
+
+    fn bus_job(kind: &str, from: &str, distance_km: u32, satisfaction: f64) -> BusJob {
+        BusJob {
+            kind: kind.to_string(),
+            from: from.to_string(),
+            to: "clermont".to_string(),
+            distance_km,
+            satisfaction,
+            start_time: 0,
+        }
+    }
+
     fn crossing(from: &str, to: &str) -> FerryCrossing {
         FerryCrossing {
             from: from.to_string(),
@@ -1605,6 +2404,7 @@ mod tests {
             city: city.to_string(),
             size,
             productivity,
+            daily_profit: Vec::new(),
         }
     }
 

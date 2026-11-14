@@ -685,6 +685,23 @@ const EVIDENCE_ITEM_LABELS: Record<string, string> = {
   go_nuclear: "cities delivered to",
   whatever_floats_your_boat: "cities delivered to",
   captain: "cities delivered to",
+  odyssean_voyager: "discovered cities",
+  bon_voyage: "discovered cities",
+  all_around_the_isle_of_beauty: "discovered cities",
+  balkan_explorer: "discovered cities",
+  sightseer: "discovered cities",
+  baltic_tourist: "discovered cities",
+  conquistador: "discovered cities",
+  imperator: "discovered cities",
+  all_around_the_blue_island: "discovered cities",
+  road_to_the_adriatics: "discovered cities",
+  national_company: "large garages in that country",
+  successfully_docked: "used ports",
+  working_with_the_elite: "large garages",
+  performance_optimizer: "large garages",
+  smooth_start: "coach jobs at 90% or more",
+  seasoned_traveller: "own-coach jobs",
+  rule_of_threes: "qualifying coach jobs",
 };
 
 // Achievements whose evidence rows turn green once each row's goal is met.

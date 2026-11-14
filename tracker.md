@@ -13,7 +13,7 @@ Implementation progress of Achievement tracking
 | Choo-Choo                               | Use the train to cross the channel                                                                                     | [x]         |  [ ]   |       |
 | Sardine                                 | Utilize a boat                                                                                                         | [x]         |  [ ]   |       |
 | Head Hunter                             | Discover at least 40 recruitment agencies                                                                              | [x]         |  [ ]   |       |
-| Successfully Docked                     | Use at least 5 ports in the game (counts sea, river and train ports)                                                   | [ ]         |  [ ]   |       |
+| Successfully Docked                     | Use at least 5 ports in the game (counts sea, river and train ports)                                                   | [x]         |  [ ]   |       |
 | From the Comfort of Your Home           | Buy a truck online                                                                                                     | [x]         |  [ ]   |       |
 | My Precious                             | Design and apply to your truck a custom multi-color metallic paint                                                     | [ ]         |  [ ]   |       |
 | Test Drive Limited (5 Truck Brands)     | Drive 999 km during jobs with each of at least 5 truck brands, only your owned trucks count                            | [x]         |  [ ]   |       |
@@ -28,11 +28,11 @@ Implementation progress of Achievement tracking
 | All Is Possible                         | Take and complete jobs with at least 30 different cargo                                                                | [x]         |  [ ]   |       |
 | Minimaxer                               | Gain 20,000 XP for several consecutive jobs with the total distance below 10,000 km                                    | [ ]         |  [ ]   |       |
 | Honey, I'm Home                         | Use quick travel to return to your headquarters                                                                        | [ ]         |  [ ]   |       |
-| National Company                        | Own at least one largest garage in your headquarter country                                                            | [ ]         |  [ ]   |       |
+| National Company                        | Own at least one largest garage in your headquarter country                                                            | [x]         |  [ ]   |       |
 | Property Magnate                        | Own at least 30 garages                                                                                                | [x]         |  [ ]   |       |
-| Working with the Elite                  | Achieve 100% of productivity for at least 5 large garages at the same time                                             | [ ]         |  [ ]   |       |
-| Swimming in Success                     | Reach an average daily profit of €450,000                                                                              | [ ]         |  [ ]   |       |
-| Performance Optimizer                   | Achieve at least 75% of the average garage productivity for 10 large garages in your company                           | [ ]         |  [ ]   |       |
+| Working with the Elite                  | Achieve 100% of productivity for at least 5 large garages at the same time                                             | [x]         |  [ ]   |       |
+| Swimming in Success                     | Reach an average daily profit of €450,000                                                                              | [x]         |  [ ]   |       |
+| Performance Optimizer                   | Achieve at least 75% of the average garage productivity for 10 large garages in your company                           | [x]         |  [ ]   |       |
 | Aspects of Professionalism              | Have at least 10 female and 10 male employees of maximum level in your company                                         | [ ]         |  [ ]   |       |
 | Zzzzz                                   | Use a rest stop                                                                                                        | [ ]         |  [ ]   |       |
 | Diesel, No Petrol!                      | Use a filling station                                                                                                  | [x]         |  [ ]   |       |
@@ -44,7 +44,7 @@ Implementation progress of Achievement tracking
 
 | Achievement        | Description                                                                                                 | Tracker     | Tested | Notes |
 | ------------------ | ----------------------------------------------------------------------------------------------------------- | ----------- | :----: | ----- |
-| Odyssean Voyager   | Discover at least 12 cities in Greece (requires Greece DLC)                                                 | [ ]         |  [ ]   |       |
+| Odyssean Voyager   | Discover at least 12 cities in Greece (requires Greece DLC)                                                 | [x]         |  [ ]   |       |
 | Sights and Legends | View cutscenes from at least 8 viewpoints in Greece (requires Greece DLC)                                   | [ ]         |  [ ]   |       |
 | All Inclusive      | Deliver cargo to at least 4 unique hotels in Greece (requires Greece DLC)                                   | [ ]         |  [ ]   |       |
 | Gift of Athena     | Deliver olives or olive oil from Eliarchos Olive Farm to 5 different cities in Greece (requires Greece DLC) | [ ]         |  [ ]   |       |
@@ -83,12 +83,12 @@ Implementation progress of Achievement tracking
 
 | Achievement                   | Description                                                                                                                                                               | Tracker     | Tested | Notes |
 | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | :----: | ----- |
-| Bon Voyage!                   | Discover at least 20 French cities (requires Vive la France ! DLC)                                                                                                        | [ ]         |  [ ]   |       |
+| Bon Voyage!                   | Discover at least 20 French cities (requires Vive la France ! DLC)                                                                                                        | [x]         |  [ ]   |       |
 | Landmark Tour                 | Discover following landmarks of France: Carcassonne, Brotonne bridge, Tiger tank, Peyrat-le-Château, Château de Ventadour, Château d'Ussé (requires Vive la France ! DLC) | [ ]         |  [ ]   |       |
 | Go Nuclear!                   | Deliver cargo to at least 3 nuclear plants in France (requires Vive la France ! DLC)                                                                                      | [x]         |  [ ]   |       |
 | Check-in, Check-out           | Deliver cargo to at least 3 cargo airport terminals in France (requires Vive la France ! DLC)                                                                             | [ ]         |  [ ]   |       |
 | Gas Must Flow!                | Deliver diesel, LPG or petrol to at least 3 truck stops in France (requires Vive la France ! DLC)                                                                         | [ ]         |  [ ]   |       |
-| All Around the Isle of Beauty | Discover at least 4 Corsican cities (requires Vive la France ! DLC)                                                                                                       | [ ]         |  [ ]   |       |
+| All Around the Isle of Beauty | Discover at least 4 Corsican cities (requires Vive la France ! DLC)                                                                                                       | [x]         |  [ ]   |       |
 
 ## Road to the Black Sea Map Expansion Achievements
 
@@ -96,7 +96,7 @@ Implementation progress of Achievement tracking
 
 | Achievement             | Description                                                                                                                                                                                                    | Tracker     | Tested | Notes |
 | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | :----: | ----- |
-| Balkan Explorer         | Discover at least 20 Road to the Black Sea DLC cities (requires Road to the Black Sea DLC)                                                                                                                     | [ ]         |  [ ]   |       |
+| Balkan Explorer         | Discover at least 20 Road to the Black Sea DLC cities (requires Road to the Black Sea DLC)                                                                                                                     | [x]         |  [ ]   |       |
 | Ranger                  | Visit at least 4 border crossings between Romania, Bulgaria and Turkey (requires Road to the Black Sea DLC)                                                                                                    | [ ]         |  [ ]   |       |
 | Ferryman                | Use a river ferry (requires Road to the Black Sea DLC)                                                                                                                                                         | [ ]         |  [ ]   |       |
 | Taking the Scenic Route | Visit the following landmarks and locations: Iron Gates, Bran Castle (Romania), Pomorie Beach, Wall of Heroes in Varna (Bulgaria), Lake Küçükçekmece in Istanbul (Turkey) (requires Road to the Black Sea DLC) | [ ]         |  [ ]   |       |
@@ -112,7 +112,7 @@ Implementation progress of Achievement tracking
 | Scania Trucks Lover       | Deliver truck cargo from Scania factory (requires Scandinavia DLC)                          | [x]         |  [ ]   |       |
 | Whatever Floats Your Boat | Deliver cargo to at least 1 container port in Scandinavia DLC (requires Scandinavia DLC)    | [x]         |  [ ]   |       |
 | Cattle Drive              | Complete a cattle delivery to any company in Scandinavia DLC (requires Scandinavia DLC)     | [ ]         |  [ ]   |       |
-| Sightseer                 | Discover at least 15 Scandinavia DLC cities (requires Scandinavia DLC)                      | [ ]         |  [ ]   |       |
+| Sightseer                 | Discover at least 15 Scandinavia DLC cities (requires Scandinavia DLC)                      | [x]         |  [ ]   |       |
 | Miner                     | Complete delivery jobs to at least 3 quarries in Scandinavia DLC (requires Scandinavia DLC) | [ ]         |  [ ]   |       |
 | Aquaphobia                | Travel across the Øresund Bridge between Copenhagen and Malmö (requires Scandinavia DLC)    | [ ]         |  [ ]   |       |
 
@@ -122,7 +122,7 @@ Implementation progress of Achievement tracking
 
 | Achievement       | Description                                                                                                                                                                                                                     | Tracker     | Tested | Notes |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | :----: | ----- |
-| Baltic Tourist    | Discover at least 20 Beyond the Baltic Sea DLC cities (requires Beyond the Baltic Sea DLC)                                                                                                                                      | [ ]         |  [ ]   |       |
+| Baltic Tourist    | Discover at least 20 Beyond the Baltic Sea DLC cities (requires Beyond the Baltic Sea DLC)                                                                                                                                      | [x]         |  [ ]   |       |
 | Grand Tour        | Complete excellent deliveries between the following countries: Russia - Lithuania; Lithuania - Latvia; Latvia - Estonia; Estonia - Russia; Russia - Finland. Any order or direction counts (requires Beyond the Baltic Sea DLC) | [ ]         |  [ ]   |       |
 | Exclave Transit   | Complete 5 deliveries from Kaliningrad to any other Russian city (requires Beyond the Baltic Sea DLC)                                                                                                                           | [ ]         |  [ ]   |       |
 | Concrete Jungle   | Complete 10 deliveries from concrete plants (requires Beyond the Baltic Sea DLC)                                                                                                                                                | [ ]         |  [ ]   |       |
@@ -146,7 +146,7 @@ Implementation progress of Achievement tracking
 
 | Achievement        | Description                                                                              | Tracker     | Tested | Notes |
 | ------------------ | ---------------------------------------------------------------------------------------- | ----------- | :----: | ----- |
-| Conquistador       | Discover at least 30 cities in Iberia (requires Iberia DLC)                              | [ ]         |  [ ]   |       |
+| Conquistador       | Discover at least 30 cities in Iberia (requires Iberia DLC)                              | [x]         |  [ ]   |       |
 | Let's Get Shipping | Deliver cargo to at least 4 container ports in Iberia (requires Iberia DLC)              | [ ]         |  [ ]   |       |
 | Taste the Sun      | Deliver ADR cargo to at least 2 solar power plants in Iberia (requires Iberia DLC)       | [ ]         |  [ ]   |       |
 | Fleet Builder      | Deliver cargo to at least 3 shipyards in Iberia (requires Iberia DLC)                    | [ ]         |  [ ]   |       |
@@ -159,13 +159,13 @@ Implementation progress of Achievement tracking
 
 | Achievement                | Description                                                                | Tracker     | Tested | Notes |
 | -------------------------- | -------------------------------------------------------------------------- | ----------- | :----: | ----- |
-| Imperator                  | Discover at least 15 Italian cities (requires Italia DLC)                  | [ ]         |  [ ]   |       |
+| Imperator                  | Discover at least 15 Italian cities (requires Italia DLC)                  | [x]         |  [ ]   |       |
 | True Sicilian              | Own a garage in at least 2 Sicilian cities (requires Italia DLC)           | [ ]         |  [ ]   |       |
 | Captain                    | Deliver cargo to at least 1 Italian shipyard (requires Italia DLC)         | [x]         |  [ ]   |       |
 | Mind the Lava              | Visit Etna and Vesuvius volcanoes (requires Italia DLC)                    | [ ]         |  [ ]   |       |
 | Many Roads Lead to Rome    | Enter Rome from at least 3 corridors that lead to it (requires Italia DLC) | [ ]         |  [ ]   |       |
 | Michelangelo               | Complete a delivery from Carrara quarry (requires Italia DLC)              | [ ]         |  [ ]   |       |
-| All Around the Blue Island | Discover at least 2 Sardinian cities (requires Italia DLC)                 | [ ]         |  [ ]   |       |
+| All Around the Blue Island | Discover at least 2 Sardinian cities (requires Italia DLC)                 | [x]         |  [ ]   |       |
 
 ## West Balkans Map Expansion Achievements
 
@@ -173,7 +173,7 @@ Implementation progress of Achievement tracking
 
 | Achievement             | Description                                                                                                                                                                                              | Tracker     | Tested | Notes |
 | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | :----: | ----- |
-| Road to the Adriatics   | Discover at least 20 cities in West Balkans (requires West Balkans DLC)                                                                                                                                  | [ ]         |  [ ]   |       |
+| Road to the Adriatics   | Discover at least 20 cities in West Balkans (requires West Balkans DLC)                                                                                                                                  | [x]         |  [ ]   |       |
 | Grand Adventurer        | View cutscenes from at least 8 viewpoints in West Balkans (requires West Balkans DLC)                                                                                                                    | [ ]         |  [ ]   |       |
 | Through the Serpentines | Complete a perfect delivery (no damage, no fines, in-time) between Pristina and Bijelo Polje (requires West Balkans DLC)                                                                                 | [ ]         |  [ ]   |       |
 | Holiday Coastline       | Complete 3 deliveries along the coast in this order: Rijeka - Zadar - Split - Niksic (requires West Balkans DLC)                                                                                         | [ ]         |  [ ]   |       |
@@ -223,7 +223,7 @@ Implementation progress of Achievement tracking
 
 | Achievement          | Description                                                                                               | Tracker | Tested | Notes |
 | -------------------- | --------------------------------------------------------------------------------------------------------- | ------- | :----: | ----- |
-| Smooth Start         | Complete a coach job with 90% or higher passenger satisfaction (requires Coaches DLC)                     | [ ]     |  [ ]   |       |
-| Seasoned Traveller   | Drive a total of 5,000 kilometers in your own vehicle during a coach job (requires Coaches DLC)           | [ ]     |  [ ]   |       |
-| Multitalented Driver | Spend at least one skill point in each coach skill (requires Coaches DLC)                                 | [ ]     |  [ ]   |       |
-| Rule of Threes       | Complete 3 consecutive jobs of at least 300 kilometers each with 100% satisfaction (requires Coaches DLC) | [ ]     |  [ ]   |       |
+| Smooth Start         | Complete a coach job with 90% or higher passenger satisfaction (requires Coaches DLC)                     | [x]     |  [ ]   |       |
+| Seasoned Traveller   | Drive a total of 5,000 kilometers in your own vehicle during a coach job (requires Coaches DLC)           | [x]     |  [ ]   |       |
+| Multitalented Driver | Spend at least one skill point in each coach skill (requires Coaches DLC)                                 | [x]     |  [ ]   |       |
+| Rule of Threes       | Complete 3 consecutive jobs of at least 300 kilometers each with 100% satisfaction (requires Coaches DLC) | [x]     |  [ ]   |       |
